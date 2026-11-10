@@ -21,7 +21,7 @@ export function productView(row: ProductRow): ProductView {
 }
 
 export function pinView(row: PinRow) {
-  return { id: row.id, kind: row.kind, statement: row.statement, angle: row.angle, reach: row.reach };
+  return { id: row.id, kind: row.kind, statement: row.statement };
 }
 
 export function partView(row: PartRow) {

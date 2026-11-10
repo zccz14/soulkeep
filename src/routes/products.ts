@@ -16,6 +16,8 @@ import {
   listProducts,
   listTiles,
   loadOwnProduct,
+  movePin,
+  updatePin,
   loadProduct,
   setTileState,
   updateProduct,
@@ -41,11 +43,10 @@ function text(value: unknown, field: string, max: number): string {
   return trimmed;
 }
 
-function number(value: unknown, field: string, min: number, max: number, fallback: number): number {
-  if (value === undefined || value === null || value === '') return fallback;
+function index(value: unknown, field: string): number {
   const parsed = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
-    return fail(400, 'bad_request', `${field} 必须在 ${min} 到 ${max} 之间`);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 999) {
+    return fail(400, 'bad_request', `${field} 必须是不小于 0 的整数`);
   }
   return parsed;
 }
@@ -115,10 +116,21 @@ productRoutes.post('/:slug/pins', async (c) => {
   const pin = await addPin(c.env, product, {
     kind: oneOf(body.kind, PIN_KINDS, '钉子类型', 'being'),
     statement: text(body.statement, '这句话', 160),
-    angle: number(body.angle, '角度', 0, 360, 0),
-    reach: number(body.reach, '撑出的距离', 0.6, 1.35, 1),
   });
   return c.json({ pin: pinView(pin) }, 201);
+});
+
+productRoutes.patch('/:slug/pins/:pinId', async (c) => {
+  const principal = await requirePrincipal(c.req.raw, c.env);
+  const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
+  const id = c.req.param('pinId');
+  const body = await c.req.json().catch(() => ({}));
+  if (body.slot !== undefined) await movePin(c.env, product, id, index(body.slot, '次序'));
+  const pin = await updatePin(c.env, product, id, {
+    statement: body.statement === undefined ? undefined : text(body.statement, '这句话', 160),
+    kind: body.kind === undefined ? undefined : oneOf(body.kind, PIN_KINDS, '钉子类型', 'being'),
+  });
+  return c.json({ pin: pinView(pin) });
 });
 
 productRoutes.delete('/:slug/pins/:pinId', async (c) => {
