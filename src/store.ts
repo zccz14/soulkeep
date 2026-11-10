@@ -24,8 +24,7 @@ export interface PinRow {
   product_id: string;
   kind: PinKind;
   statement: string;
-  angle: number;
-  reach: number;
+  slot: number;
   created_at: number;
 }
 
@@ -138,7 +137,7 @@ export async function deleteProduct(env: Env, product: ProductRow): Promise<void
 
 export async function listPins(env: Env, productId: string): Promise<PinRow[]> {
   const { results } = await env.DB.prepare(
-    `SELECT * FROM soul_pins WHERE product_id = ? ORDER BY angle ASC`,
+    `SELECT * FROM soul_pins WHERE product_id = ? ORDER BY slot ASC, created_at ASC`,
   )
     .bind(productId)
     .all<PinRow>();
@@ -148,24 +147,69 @@ export async function listPins(env: Env, productId: string): Promise<PinRow[]> {
 export async function addPin(
   env: Env,
   product: ProductRow,
-  input: { kind: PinKind; statement: string; angle: number; reach: number },
+  input: { kind: PinKind; statement: string },
 ): Promise<PinRow> {
+  const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM soul_pins WHERE product_id = ?`)
+    .bind(product.id)
+    .first<{ n: number }>();
   const row: PinRow = {
     id: newId('pin'),
     product_id: product.id,
     kind: input.kind,
     statement: input.statement.trim(),
-    angle: input.angle,
-    reach: input.reach,
+    slot: count?.n ?? 0,
     created_at: nowSeconds(),
   };
   await env.DB.prepare(
-    `INSERT INTO soul_pins (id, product_id, kind, statement, angle, reach, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO soul_pins (id, product_id, kind, statement, slot, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(row.id, row.product_id, row.kind, row.statement, row.angle, row.reach, row.created_at)
+    .bind(row.id, row.product_id, row.kind, row.statement, row.slot, row.created_at)
     .run();
   await touch(env, product.id);
   return row;
+}
+
+/** 改一句话或改一类，不动次序。 */
+export async function updatePin(
+  env: Env,
+  product: ProductRow,
+  pinId: string,
+  input: { statement?: string; kind?: PinKind },
+): Promise<PinRow> {
+  const row = await env.DB.prepare(`SELECT * FROM soul_pins WHERE id = ? AND product_id = ?`)
+    .bind(pinId, product.id)
+    .first<PinRow>();
+  if (!row) return fail(404, 'not_found', '没有这颗钉');
+  const next: PinRow = {
+    ...row,
+    statement: input.statement ?? row.statement,
+    kind: input.kind ?? row.kind,
+  };
+  await env.DB.prepare(`UPDATE soul_pins SET kind = ?, statement = ? WHERE id = ?`)
+    .bind(next.kind, next.statement, next.id)
+    .run();
+  await touch(env, product.id);
+  return next;
+}
+
+/** 挪到第 target 位：整串重排一次，次序永远是 0..n-1。 */
+export async function movePin(
+  env: Env,
+  product: ProductRow,
+  pinId: string,
+  target: number,
+): Promise<void> {
+  const rows = await listPins(env, product.id);
+  const from = rows.findIndex((row) => row.id === pinId);
+  if (from === -1) return fail(404, 'not_found', '没有这颗钉');
+  const to = Math.min(Math.max(Math.trunc(target), 0), rows.length - 1);
+  if (to === from) return;
+  const [moved] = rows.splice(from, 1);
+  rows.splice(to, 0, moved);
+  await env.DB.batch(
+    rows.map((row, index) => env.DB.prepare(`UPDATE soul_pins SET slot = ? WHERE id = ?`).bind(index, row.id)),
+  );
+  await touch(env, product.id);
 }
 
 export async function deletePin(env: Env, product: ProductRow, pinId: string): Promise<void> {

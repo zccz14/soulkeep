@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuthMini } from 'auth-mini-react-components';
 import {
@@ -10,8 +10,10 @@ import {
   removePin,
   removeTile,
   setTileState,
+  updatePin,
   type PartKind,
   type PinKind,
+  type PinView,
   type ProductDetail,
   type SdkLike,
   type TileState,
@@ -98,14 +100,53 @@ function SoulPanel({
   const [kind, setKind] = useState<PinKind>('being');
   const [statement, setStatement] = useState('');
   const [error, setError] = useState<unknown>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  /** 正在编辑哪一颗：Enter、失焦、Esc 谁先来都只算一次。 */
+  const editing = useRef<string | null>(null);
 
   const submit = async () => {
     if (!sdk) return;
     setError(null);
     try {
-      const angle = (pins.length * 137.508) % 360;
-      await addPin(sdk, slug, { kind, statement, angle, reach: 1 });
+      await addPin(sdk, slug, { kind, statement });
       setStatement('');
+      onChanged();
+    } catch (problem) {
+      setError(problem);
+    }
+  };
+
+  const startEdit = (pin: PinView) => {
+    editing.current = pin.id;
+    setDraft(pin.statement);
+    setEditingId(pin.id);
+  };
+
+  const stopEdit = () => {
+    editing.current = null;
+    setEditingId(null);
+  };
+
+  const commit = async (pin: PinView) => {
+    if (editing.current !== pin.id) return;
+    const next = draft.trim();
+    stopEdit();
+    if (!next || next === pin.statement || !sdk) return;
+    setError(null);
+    try {
+      await updatePin(sdk, slug, pin.id, { statement: next });
+      onChanged();
+    } catch (problem) {
+      setError(problem);
+    }
+  };
+
+  const move = async (position: number, delta: number) => {
+    if (!sdk) return;
+    setError(null);
+    try {
+      await updatePin(sdk, slug, pins[position].id, { slot: position + delta });
       onChanged();
     } catch (problem) {
       setError(problem);
@@ -131,21 +172,60 @@ function SoulPanel({
 
       <ul className="flex flex-col gap-1.5">
         {pins.length === 0 ? <Empty>还没有钉子。轮廓现在还不存在。</Empty> : null}
-        {pins.map((pin) => (
+        {pins.map((pin, position) => (
           <li key={pin.id} className="flex items-start gap-2 rounded-md border border-border px-2.5 py-2 text-xs leading-relaxed">
             <span className="mt-0.5 shrink-0 rounded bg-muted/60 px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
               {PIN_LABEL[pin.kind]}
             </span>
-            <span className="flex-1">{pin.statement}</span>
-            {editable ? (
-              <button
-                type="button"
-                onClick={() => drop(pin.id)}
-                className="shrink-0 text-muted-foreground transition hover:text-destructive"
-                aria-label="拔掉这颗钉"
+            {editingId === pin.id ? (
+              <input
+                autoFocus
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void commit(pin);
+                  if (event.key === 'Escape') stopEdit();
+                }}
+                onBlur={() => void commit(pin)}
+                className="min-w-0 flex-1 rounded border border-input bg-background px-1.5 py-0.5 text-xs outline-none transition focus:border-foreground/40 focus:ring-2 focus:ring-ring/20"
+              />
+            ) : (
+              <span
+                onClick={editable ? () => startEdit(pin) : undefined}
+                className={`flex-1 ${editable ? '-mx-1 cursor-text rounded px-1 transition hover:bg-foreground/[0.04]' : ''}`}
               >
-                ×
-              </button>
+                {pin.statement}
+              </span>
+            )}
+            {editable && editingId !== pin.id ? (
+              <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
+                <button
+                  type="button"
+                  disabled={position === 0}
+                  onClick={() => move(position, -1)}
+                  className="transition hover:text-foreground disabled:opacity-25"
+                  aria-label="往上挪一颗"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  disabled={position === pins.length - 1}
+                  onClick={() => move(position, 1)}
+                  className="transition hover:text-foreground disabled:opacity-25"
+                  aria-label="往下挪一颗"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  onClick={() => drop(pin.id)}
+                  className="transition hover:text-destructive"
+                  aria-label="拔掉这颗钉"
+                >
+                  ×
+                </button>
+              </span>
             ) : null}
           </li>
         ))}
