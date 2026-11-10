@@ -110,18 +110,3 @@ pre.block { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; l
 .md table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .md th, .md td { padding: 5px 8px; border: 1px solid var(--border); text-align: left; }
 .md hr { margin: 14px 0; border: 0; border-top: 1px solid var(--border); }
-
-/*
- * AutoLabs 的导航只有两项，图标本身说不清「项目」还是「关于」。
- * 宽屏下不把侧栏收成图标轨道：标签始终在，收起按钮也一并藏掉
- * （⌘B 仍会切换，但视觉上保持展开）。窄屏继续走 @zccz14/ux 的抽屉。
- */
-@media (min-width: 768px) {
-  .ux-app-header__trigger { display: none; }
-  .ux-app-layout[data-state="collapsed"] .ux-sidebar { width: 16rem; }
-  .ux-app-layout[data-state="collapsed"] .ux-sidebar__header { justify-content: flex-start; padding: 0 0.75rem; }
-  .ux-app-layout[data-state="collapsed"] .ux-sidebar__title { display: block; }
-  .ux-app-layout[data-state="collapsed"] .ux-nav-group__label { display: flex; }
-  .ux-app-layout[data-state="collapsed"] .ux-nav-item { justify-content: flex-start; gap: 0.5rem; width: 100%; padding: 0 0.5rem; }
-  .ux-app-layout[data-state="collapsed"] .ux-nav-item__text { width: auto; opacity: 1; }
-}

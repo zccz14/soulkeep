@@ -61,18 +61,24 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={`${inputClass} ${props.className ?? ''}`} />;
 }
 
-export function Button({
-  variant = 'solid',
-  className = '',
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'solid' | 'quiet' }) {
-  const base =
-    'inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition disabled:cursor-not-allowed disabled:opacity-50';
+export type ButtonVariant = 'solid' | 'quiet';
+
+/** 按钮的皮，链接也能穿：一个动作不该因为跳转就长得不一样。 */
+export function buttonClass(variant: ButtonVariant = 'solid'): string {
+  const base = 'inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition';
   const styles =
     variant === 'solid'
       ? 'bg-foreground text-background hover:opacity-90'
       : 'border border-border text-muted-foreground hover:text-foreground';
-  return <button {...props} className={`${base} ${styles} ${className}`} />;
+  return `${base} ${styles}`;
+}
+
+export function Button({
+  variant = 'solid',
+  className = '',
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
+  return <button {...props} className={`${buttonClass(variant)} disabled:cursor-not-allowed disabled:opacity-50 ${className}`} />;
 }
 
 export function ErrorNote({ error }: { error: unknown }) {

@@ -7,7 +7,6 @@ import {
   getProduct,
   removePart,
   removeTile,
-  saveSoul,
   setTileState,
   type PartKind,
   type ProductDetail,
@@ -15,8 +14,7 @@ import {
   type SdkLike,
   type TileState,
 } from '../api';
-import { SoulEditor } from '../components/soul-editor';
-import { Badge, Button, Card, Empty, ErrorNote, Field, Kicker, Note, Select, TextInput, Title } from '../ui';
+import { Badge, Button, buttonClass, Card, Empty, ErrorNote, Field, Kicker, Note, Select, TextInput, Title } from '../ui';
 
 const PART_KINDS: PartKind[] = ['table', 'object', 'stack'];
 const PART_LABEL: Record<PartKind, string> = { table: '表', object: '对外对象', stack: '技术栈' };
@@ -70,7 +68,7 @@ export function ProductPage() {
       </header>
 
       <div className="flex flex-col gap-4">
-        <SoulPanel slug={product.slug} soul={soul} editable={editable} sdk={typed} onChanged={load} />
+        <SoulPanel slug={product.slug} soul={soul} canEdit={editable} />
         <SkeletonPanel slug={product.slug} parts={parts} editable={editable} sdk={typed} onChanged={load} />
         <FleshPanel slug={product.slug} tiles={tiles} editable={editable} sdk={typed} onChanged={load} />
       </div>
@@ -80,59 +78,43 @@ export function ProductPage() {
   );
 }
 
-function SoulPanel({
-  slug,
-  soul,
-  editable,
-  sdk,
-  onChanged,
-}: {
-  slug: string;
-  soul: Soul;
-  editable: boolean;
-  sdk: SdkLike | null;
-  onChanged: () => void;
-}) {
-  const [draft, setDraft] = useState<Soul>(soul);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<unknown>(null);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(soul);
-
-  useEffect(() => {
-    setDraft(soul);
-  }, [soul]);
-
-  const save = async () => {
-    if (!sdk) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await saveSoul(sdk, slug, draft);
-      onChanged();
-    } catch (problem) {
-      setError(problem);
-    } finally {
-      setSaving(false);
-    }
-  };
-
+function SoulPanel({ slug, soul, canEdit }: { slug: string; soul: Soul; canEdit: boolean }) {
   return (
     <Card className="flex flex-col gap-3">
-      <Title hint="一句话一条，顺序就是轻重">灵魂</Title>
-      <Note>改的都是草稿，点保存才写回去；没保存就离开这一页，草稿就没了。</Note>
-      <ErrorNote error={error} />
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold tracking-tight">灵魂</h2>
+        <span className="text-xs text-muted-foreground">一句话一条，顺序就是轻重</span>
+        {canEdit ? (
+          <Link className={buttonClass('quiet')} to={`/p/${slug}/soul`}>
+            编辑灵魂
+          </Link>
+        ) : null}
+      </div>
 
-      <SoulEditor value={draft} editable={editable} onChange={setDraft} />
+      {soul.statements.length === 0 ? (
+        <Empty>还没有一句。它现在还没有形状。</Empty>
+      ) : (
+        <ol className="flex flex-col gap-1.5">
+          {soul.statements.map((line, index) => (
+            <li key={index} className="flex gap-2 rounded-md border border-border px-2.5 py-2 text-xs leading-relaxed">
+              <span className="shrink-0 tabular-nums text-muted-foreground/60">{String(index + 1).padStart(2, '0')}</span>
+              <span className="flex-1">{line}</span>
+            </li>
+          ))}
+        </ol>
+      )}
 
-      {editable ? (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-          <Button onClick={save} disabled={!dirty || saving}>
-            {saving ? '保存中…' : '保存'}
-          </Button>
-          <Button variant="quiet" onClick={() => setDraft(soul)} disabled={!dirty || saving}>
-            放弃修改
-          </Button>
-          <span className="text-xs text-muted-foreground">{dirty ? '有未保存的改动' : '和线上一致'}</span>
+      {soul.concepts.length > 0 ? (
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+          <p className="text-xs text-muted-foreground">名词</p>
+          <dl className="flex flex-col gap-1">
+            {soul.concepts.map((concept, index) => (
+              <div key={index} className="flex flex-wrap items-baseline gap-x-2 text-xs leading-relaxed">
+                <dt className="font-medium">{concept.term}</dt>
+                <dd className="text-muted-foreground">{concept.definition}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       ) : null}
     </Card>
