@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type TextareaHTMLAttributes } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type TextareaHTMLAttributes } from 'react';
+import { GripVertical } from 'lucide-react';
 import type { Concept, Soul } from '../api';
 
 /** 服务端也按这套上限拒收；这里照抄一份，写到边上就写不下去了。 */
@@ -6,24 +7,86 @@ const STATEMENT_MAX = 160;
 const TERM_MAX = 40;
 const DEFINITION_MAX = 400;
 
+interface DragState {
+  from: number;
+  over: number;
+  heights: number[];
+}
+
+/**
+ * 拖一行时先只挪视觉：按每行实测高度算出该让出多少，松手才真正换序。
+ * 换序放在松手那一刻，行还是原来那些节点，不会在拖动中途被 React 重挂载把拖拽打断。
+ */
+function useListDrag<T extends HTMLElement>(name: string, onMove: (from: number, to: number) => void) {
+  const listRef = useRef<T>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
+
+  const handleProps = (index: number) => ({
+    'data-handle': `${name}-${index}`,
+    draggable: true,
+    onDragStart: (event: DragEvent<HTMLButtonElement>) => {
+      event.dataTransfer.effectAllowed = 'move';
+      const rows = Array.from(listRef.current?.children ?? []);
+      setDrag({ from: index, over: index, heights: rows.map((row) => row.getBoundingClientRect().height) });
+    },
+    onDragEnd: () => setDrag(null),
+    onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+      event.preventDefault();
+      onMove(index, event.key === 'ArrowUp' ? index - 1 : index + 1);
+    },
+  });
+
+  const rowProps = (index: number) => ({
+    onDragOver: (event: DragEvent<HTMLLIElement>) => {
+      if (!drag) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      if (drag.over !== index) setDrag({ ...drag, over: index });
+    },
+    onDrop: (event: DragEvent<HTMLLIElement>) => {
+      event.preventDefault();
+      if (!drag) return;
+      const { from, over } = drag;
+      setDrag(null);
+      onMove(from, over);
+    },
+    style: drag ? { transform: `translateY(${offsetOf(index, drag)}px)`, transition: 'transform 160ms ease' } : undefined,
+  });
+
+  return { listRef, drag, handleProps, rowProps };
+}
+
+/** 被拖的那行跟着手走，路过的行按它的高度整体让位。 */
+function offsetOf(index: number, drag: DragState): number {
+  const { from, over, heights } = drag;
+  const dragged = heights[from] ?? 0;
+  if (index === from) {
+    const passed = from < over ? heights.slice(from + 1, over + 1) : heights.slice(over, from);
+    const distance = passed.reduce((sum, height) => sum + height, 0);
+    return from < over ? distance : -distance;
+  }
+  if (from < over && index > from && index <= over) return -dragged;
+  if (over < from && index >= over && index < from) return dragged;
+  return 0;
+}
+
 /**
  * 灵魂的写作面：一句话一行，每一行永远处在可编辑状态。
- * 回车另起一句，空行退格撤掉；左边编号既是顺序，也是拖拽把手。
+ * 回车另起一句，空行退格撤掉；左边抓手拖动换序，聚焦后按上下键也行。
  * 它只管草稿的内容，存不存、存到哪，由外面那层决定。
  */
 export function SoulEditor({ value, onChange }: { value: Soul; onChange: (next: Soul) => void }) {
   const areaRef = useRef<HTMLDivElement>(null);
-  const [focusField, setFocusField] = useState<string | null>(null);
-  const [dragging, setDragging] = useState<number | null>(null);
-  const [over, setOver] = useState<number | null>(null);
+  const [focusRequest, setFocusRequest] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!focusField) return;
-    const node = areaRef.current?.querySelector<HTMLTextAreaElement>(`[data-field="${focusField}"]`);
+    if (!focusRequest) return;
+    const node = areaRef.current?.querySelector<HTMLElement>(focusRequest);
     node?.focus();
-    node?.setSelectionRange(node.value.length, node.value.length);
-    setFocusField(null);
-  }, [focusField]);
+    if (node instanceof HTMLTextAreaElement) node.setSelectionRange(node.value.length, node.value.length);
+    setFocusRequest(null);
+  }, [focusRequest]);
 
   const setStatements = (statements: string[]) => onChange({ ...value, statements });
 
@@ -34,13 +97,13 @@ export function SoulEditor({ value, onChange }: { value: Soul; onChange: (next: 
     const next = [...value.statements];
     next.splice(after + 1, 0, '');
     setStatements(next);
-    setFocusField(`statement-${after + 1}`);
+    setFocusRequest(`[data-field="statement-${after + 1}"]`);
   };
 
   const removeStatement = (index: number) => setStatements(value.statements.filter((_, at) => at !== index));
 
   const moveStatement = (from: number, to: number) => {
-    if (to < 0 || to >= value.statements.length || to === from) return;
+    if (from === to || to < 0 || to >= value.statements.length) return;
     const next = [...value.statements];
     const [line] = next.splice(from, 1);
     next.splice(to, 0, line);
@@ -56,7 +119,7 @@ export function SoulEditor({ value, onChange }: { value: Soul; onChange: (next: 
     if (event.key === 'Backspace' && event.currentTarget.value === '' && value.statements.length > 1) {
       event.preventDefault();
       removeStatement(index);
-      setFocusField(`statement-${Math.max(0, index - 1)}`);
+      setFocusRequest(`[data-field="statement-${Math.max(0, index - 1)}"]`);
     }
   };
 
@@ -65,11 +128,29 @@ export function SoulEditor({ value, onChange }: { value: Soul; onChange: (next: 
 
   const insertConcept = () => {
     onChange({ ...value, concepts: [...value.concepts, { term: '', definition: '' }] });
-    setFocusField(`concept-term-${value.concepts.length}`);
+    setFocusRequest(`[data-field="concept-term-${value.concepts.length}"]`);
   };
 
   const removeConcept = (index: number) =>
     onChange({ ...value, concepts: value.concepts.filter((_, at) => at !== index) });
+
+  const moveConcept = (from: number, to: number) => {
+    if (from === to || to < 0 || to >= value.concepts.length) return;
+    const next = [...value.concepts];
+    const [concept] = next.splice(from, 1);
+    next.splice(to, 0, concept);
+    onChange({ ...value, concepts: next });
+  };
+
+  const statements = useListDrag<HTMLOListElement>('statement', (from, to) => {
+    moveStatement(from, to);
+    if (to >= 0 && to < value.statements.length) setFocusRequest(`[data-handle="statement-${to}"]`);
+  });
+
+  const concepts = useListDrag<HTMLUListElement>('concept', (from, to) => {
+    moveConcept(from, to);
+    if (to >= 0 && to < value.concepts.length) setFocusRequest(`[data-handle="concept-${to}"]`);
+  });
 
   return (
     <div ref={areaRef} className="flex flex-col gap-8">
@@ -85,53 +166,28 @@ export function SoulEditor({ value, onChange }: { value: Soul; onChange: (next: 
           </p>
         ) : null}
 
-        <ol className="flex flex-col">
+        <ol ref={statements.listRef} className="flex flex-col">
           {value.statements.map((line, index) => (
             <li
               key={index}
-              onDragOver={(event) => {
-                if (dragging === null || dragging === index) return;
-                event.preventDefault();
-                setOver(index);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                if (dragging === null) return;
-                moveStatement(dragging, index);
-                setDragging(null);
-                setOver(null);
-              }}
-              className={`group flex items-start gap-2 rounded-lg border px-2 py-1.5 transition ${
-                dragging === index
-                  ? 'border-border opacity-40'
-                  : over === index && dragging !== null
-                    ? 'border-foreground/40 bg-foreground/[0.04]'
-                    : 'border-transparent hover:border-border'
+              {...statements.rowProps(index)}
+              className={`group flex items-start gap-1.5 rounded-lg border px-1.5 py-1.5 ${
+                statements.drag?.from === index
+                  ? 'border-border bg-muted/40 opacity-50'
+                  : 'border-transparent hover:border-border'
               }`}
             >
               <button
                 type="button"
-                draggable
+                {...statements.handleProps(index)}
                 aria-label={`第 ${index + 1} 句：拖动调整顺序，或按上下方向键`}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = 'move';
-                  setDragging(index);
-                }}
-                onDragEnd={() => {
-                  setDragging(null);
-                  setOver(null);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
-                  event.preventDefault();
-                  const to = event.key === 'ArrowUp' ? index - 1 : index + 1;
-                  moveStatement(index, to);
-                  if (to >= 0 && to < value.statements.length) setFocusField(`statement-${to}`);
-                }}
-                className="mt-1 w-6 shrink-0 cursor-grab rounded text-right text-xs tabular-nums text-muted-foreground/50 transition select-none hover:text-foreground focus-visible:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:cursor-grabbing"
+                className="mt-0.5 hidden size-5 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/40 transition hover:text-foreground focus-visible:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:cursor-grabbing sm:flex"
               >
-                {String(index + 1).padStart(2, '0')}
+                <GripVertical aria-hidden className="size-3.5" />
               </button>
+              <span className="mt-1 w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground/50 select-none">
+                {String(index + 1).padStart(2, '0')}
+              </span>
               <AutoTextarea
                 data-field={`statement-${index}`}
                 value={line}
@@ -174,12 +230,25 @@ export function SoulEditor({ value, onChange }: { value: Soul; onChange: (next: 
           </p>
         ) : null}
 
-        <ul className="flex flex-col">
+        <ul ref={concepts.listRef} className="flex flex-col">
           {value.concepts.map((concept, index) => (
             <li
               key={index}
-              className="group flex flex-col gap-1 rounded-lg border border-transparent px-2 py-1.5 transition hover:border-border sm:flex-row sm:items-start sm:gap-3"
+              {...concepts.rowProps(index)}
+              className={`group flex flex-col gap-1 rounded-lg border px-1.5 py-1.5 sm:flex-row sm:items-start sm:gap-2 ${
+                concepts.drag?.from === index
+                  ? 'border-border bg-muted/40 opacity-50'
+                  : 'border-transparent hover:border-border'
+              }`}
             >
+              <button
+                type="button"
+                {...concepts.handleProps(index)}
+                aria-label={`名词「${concept.term || index + 1}」：拖动调整顺序，或按上下方向键`}
+                className="mt-0.5 hidden size-5 shrink-0 cursor-grab items-center justify-center self-start rounded text-muted-foreground/40 transition hover:text-foreground focus-visible:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:cursor-grabbing sm:flex"
+              >
+                <GripVertical aria-hidden className="size-3.5" />
+              </button>
               <AutoTextarea
                 data-field={`concept-term-${index}`}
                 value={concept.term}
@@ -187,7 +256,7 @@ export function SoulEditor({ value, onChange }: { value: Soul; onChange: (next: 
                 onKeyDown={(event) => {
                   if (event.key !== 'Enter') return;
                   event.preventDefault();
-                  setFocusField(`concept-definition-${index}`);
+                  setFocusRequest(`[data-field="concept-definition-${index}"]`);
                 }}
                 maxLength={TERM_MAX}
                 placeholder="术语"
@@ -210,7 +279,7 @@ export function SoulEditor({ value, onChange }: { value: Soul; onChange: (next: 
                 type="button"
                 onClick={() => removeConcept(index)}
                 aria-label={`删掉名词「${concept.term || index + 1}」`}
-                className="shrink-0 rounded px-1 text-sm text-muted-foreground/40 opacity-40 transition group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
+                className="shrink-0 self-start rounded px-1 text-sm text-muted-foreground/40 opacity-40 transition group-hover:opacity-100 hover:text-destructive focus-visible:opacity-100"
               >
                 ×
               </button>
