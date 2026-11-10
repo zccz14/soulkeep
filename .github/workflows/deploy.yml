@@ -1,0 +1,73 @@
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [pr-check]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 两次合并先后到达时，迁移与上传必须按顺序跑完，不能互相插队。
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a Cloudflare credential
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          missing=""
+          [ -n "$TOKEN" ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ -n "$ACCOUNT" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error title=部署未配置::仓库缺少:$missing。main 的改动不会上线。"
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply D1 migrations
+        run: pnpm exec wrangler d1 migrations apply soulkeep --remote --config wrangler.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Build and deploy the Worker
+        run: pnpm deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Smoke test the deployment
+        run: |
+          set -euo pipefail
+          base=https://soulkeep.ntnl.io
+          health=$(curl -sS --max-time 20 "$base/api/v1/health")
+          case "$health" in
+            *'"ok":true'*) echo "健康检查通过：$health" ;;
+            *) echo "::error::健康检查没有返回 ok：$health"; exit 1 ;;
+          esac
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$base/")
+          test "$code" = 200 || { echo "::error::首页返回 $code"; exit 1; }
+          sample=$(curl -sS --max-time 20 "$base/api/v1/products/soulkeep")
+          case "$sample" in
+            *'"slug":"soulkeep"'*) echo "示范产品在线" ;;
+            *) echo "::error::示范产品没有返回：$sample"; exit 1 ;;
+          esac

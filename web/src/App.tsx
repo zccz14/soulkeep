@@ -1,0 +1,43 @@
+import { InfoIcon, LayersIcon } from 'lucide-react';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AppLayout } from '@zccz14/ux';
+import { useAuthMini } from 'auth-mini-react-components';
+import { SoulkeepMark } from './mark';
+import { DeskPage } from './pages/desk';
+import { ProductPage } from './pages/product';
+import { AboutPage } from './pages/about';
+
+export function App() {
+  const { isReady } = useAuthMini();
+
+  if (!isReady) {
+    return (
+      <main className="flex min-h-svh items-center justify-center p-6 text-sm text-muted-foreground">
+        <span className="size-5 animate-pulse rounded-full bg-foreground/30" />
+      </main>
+    );
+  }
+
+  return (
+    <AppLayout
+      logo={<SoulkeepMark />}
+      title="Soulkeep"
+      nav={[
+        {
+          label: '工作台',
+          items: [
+            { to: '/', label: '创始人桌面', icon: <LayersIcon /> },
+            { to: '/about', label: '四条', icon: <InfoIcon /> },
+          ],
+        },
+      ]}
+    >
+      <Routes>
+        <Route path="/" element={<DeskPage />} />
+        <Route path="/p/:slug" element={<ProductPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="*" element={<Navigate replace to="/" />} />
+      </Routes>
+    </AppLayout>
+  );
+}
