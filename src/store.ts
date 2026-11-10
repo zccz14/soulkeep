@@ -1,5 +1,6 @@
 import type { Env } from './env';
 import { fail } from './http';
+import { SLOT_STEP, slotBetween } from './order';
 import { newId, nowSeconds, toSlug } from './ids';
 import type { Principal } from './auth';
 
@@ -147,14 +148,14 @@ export async function addPin(
   product: ProductRow,
   input: { statement: string },
 ): Promise<PinRow> {
-  const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM soul_pins WHERE product_id = ?`)
+  const last = await env.DB.prepare(`SELECT MAX(slot) AS slot FROM soul_pins WHERE product_id = ?`)
     .bind(product.id)
-    .first<{ n: number }>();
+    .first<{ slot: number | null }>();
   const row: PinRow = {
     id: newId('pin'),
     product_id: product.id,
     statement: input.statement.trim(),
-    slot: count?.n ?? 0,
+    slot: (last?.slot ?? 0) + SLOT_STEP,
     created_at: nowSeconds(),
   };
   await env.DB.prepare(
@@ -197,11 +198,19 @@ export async function movePin(
   if (from === -1) return fail(404, 'not_found', '没有这颗钉');
   const to = Math.min(Math.max(Math.trunc(target), 0), rows.length - 1);
   if (to === from) return;
-  const [moved] = rows.splice(from, 1);
-  rows.splice(to, 0, moved);
-  await env.DB.batch(
-    rows.map((row, index) => env.DB.prepare(`UPDATE soul_pins SET slot = ? WHERE id = ?`).bind(index, row.id)),
-  );
+  const rest = rows.filter((row) => row.id !== pinId);
+  const slot = slotBetween(rest[to - 1]?.slot ?? null, rest[to]?.slot ?? null);
+  if (slot === null) {
+    // 同一处被连着挪了上千次，空档磨平：这一次整串重排，重新留出空档。
+    const ordered = [...rest.slice(0, to), rows[from], ...rest.slice(to)];
+    await env.DB.batch(
+      ordered.map((row, index) =>
+        env.DB.prepare(`UPDATE soul_pins SET slot = ? WHERE id = ?`).bind((index + 1) * SLOT_STEP, row.id),
+      ),
+    );
+  } else {
+    await env.DB.prepare(`UPDATE soul_pins SET slot = ? WHERE id = ?`).bind(slot, pinId).run();
+  }
   await touch(env, product.id);
 }
 
