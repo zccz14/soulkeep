@@ -5,6 +5,7 @@ import { useAuthMini } from 'auth-mini-react-components';
 import { SoulkeepMark } from './mark';
 import { DeskPage } from './pages/desk';
 import { ProductPage } from './pages/product';
+import { SoulPage } from './pages/soul';
 import { AboutPage } from './pages/about';
 
 export function App() {
@@ -35,6 +36,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<DeskPage />} />
         <Route path="/p/:slug" element={<ProductPage />} />
+        <Route path="/p/:slug/soul" element={<SoulPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="*" element={<Navigate replace to="/" />} />
       </Routes>
