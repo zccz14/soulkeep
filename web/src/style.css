@@ -110,3 +110,26 @@ pre.block { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; l
 .md table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .md th, .md td { padding: 5px 8px; border: 1px solid var(--border); text-align: left; }
 .md hr { margin: 14px 0; border: 0; border-top: 1px solid var(--border); }
+
+/*
+ * 拖拽换序：拖动时 @dnd-kit 会把元素复制一份跟手、原件留在原位当空槽。
+ * 复制的那份要真的浮起来（不透明 + 投影），原位那份要退成虚线空槽。
+ */
+[data-dnd-dragging] {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.14);
+  opacity: 1;
+  cursor: grabbing;
+}
+
+[data-dnd-placeholder] {
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+}
+
+[data-dnd-placeholder] * {
+  opacity: 0.2;
+}
