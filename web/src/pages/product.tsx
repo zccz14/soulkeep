@@ -16,13 +16,13 @@ import {
   type SdkLike,
   type TileState,
 } from '../api';
-import { Body, PIN_LABEL } from '../components/body';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Kicker, Note, Select, TextInput, Title } from '../ui';
 
 const PIN_KINDS: PinKind[] = ['why', 'being', 'never', 'who'];
 const PART_KINDS: PartKind[] = ['concept', 'table', 'object', 'stack'];
 const PART_LABEL: Record<PartKind, string> = { concept: '概念', table: '表', object: '对外对象', stack: '技术栈' };
 const TILE_LABEL: Record<TileState, string> = { growing: '长着', pending: '待补', shed: '已脱落' };
+const PIN_LABEL: Record<PinKind, string> = { why: '为什么', being: '要成为', never: '绝不', who: '给谁' };
 const NEXT_STATE: Record<TileState, TileState> = { growing: 'pending', pending: 'shed', shed: 'growing' };
 
 export function ProductPage() {
@@ -31,7 +31,6 @@ export function ProductPage() {
   const typed = sdk as unknown as SdkLike | null;
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [selectedPin, setSelectedPin] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setError(null);
@@ -72,15 +71,8 @@ export function ProductPage() {
         </div>
       </header>
 
-      <Card className="relative overflow-hidden p-2 sm:p-4">
-        <Body pins={pins} parts={parts} tiles={tiles} selectedPinId={selectedPin} onSelectPin={setSelectedPin} />
-        <p className="px-2 pb-1 pt-2 text-xs leading-relaxed text-muted-foreground">
-          虚线是灵魂，粗线是骨架，格子里是血肉。您钉下的每一句，都长在这条轮廓上。
-        </p>
-      </Card>
-
-      <div className="grid gap-3 lg:grid-cols-3">
-        <SoulPanel slug={product.slug} pins={pins} selectedPin={selectedPin} editable={editable} sdk={typed} onChanged={load} />
+      <div className="flex flex-col gap-4">
+        <SoulPanel slug={product.slug} pins={pins} editable={editable} sdk={typed} onChanged={load} />
         <SkeletonPanel slug={product.slug} parts={parts} editable={editable} sdk={typed} onChanged={load} />
         <FleshPanel slug={product.slug} tiles={tiles} editable={editable} sdk={typed} onChanged={load} />
       </div>
@@ -93,14 +85,12 @@ export function ProductPage() {
 function SoulPanel({
   slug,
   pins,
-  selectedPin,
   editable,
   sdk,
   onChanged,
 }: {
   slug: string;
   pins: ProductDetail['pins'];
-  selectedPin: string | null;
   editable: boolean;
   sdk: SdkLike | null;
   onChanged: () => void;
@@ -142,12 +132,7 @@ function SoulPanel({
       <ul className="flex flex-col gap-1.5">
         {pins.length === 0 ? <Empty>还没有钉子。轮廓现在还不存在。</Empty> : null}
         {pins.map((pin) => (
-          <li
-            key={pin.id}
-            className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs leading-relaxed transition ${
-              selectedPin === pin.id ? 'border-foreground/40 bg-foreground/[0.04]' : 'border-border'
-            }`}
-          >
+          <li key={pin.id} className="flex items-start gap-2 rounded-md border border-border px-2.5 py-2 text-xs leading-relaxed">
             <span className="mt-0.5 shrink-0 rounded bg-muted/60 px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
               {PIN_LABEL[pin.kind]}
             </span>
