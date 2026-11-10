@@ -46,7 +46,6 @@ export async function api<T>(sdk: SdkLike | null, path: string, init?: RequestIn
   return parsed as T;
 }
 
-export type PartKind = 'table' | 'object' | 'stack';
 export type TileState = 'growing' | 'pending' | 'shed';
 
 export interface ProductView {
@@ -58,11 +57,24 @@ export interface ProductView {
   updatedAt: number;
 }
 
-export interface PartView {
-  id: string;
-  kind: PartKind;
+export type Cardinality = 'one-to-one' | 'one-to-many' | 'many-to-many';
+
+export interface SkeletonTable {
   name: string;
   note: string;
+}
+
+export interface SkeletonRelation {
+  from: string;
+  to: string;
+  cardinality: Cardinality;
+}
+
+/** 骨架是一份文档：表与表的关系，不写字段。 */
+export interface Skeleton {
+  version: 1;
+  tables: SkeletonTable[];
+  relations: SkeletonRelation[];
 }
 
 export interface TileView {
@@ -88,7 +100,7 @@ export interface ProductDetail {
   /** 只有拥有者能改；这是服务端算好的结论，前端不再自己推断。 */
   canEdit: boolean;
   soul: Soul;
-  parts: PartView[];
+  skeleton: Skeleton;
   tiles: TileView[];
 }
 
@@ -115,15 +127,11 @@ export function saveSoul(sdk: SdkLike, slug: string, soul: Soul) {
   });
 }
 
-export function addPart(sdk: SdkLike, slug: string, input: Omit<PartView, 'id'>) {
-  return api<{ part: PartView }>(sdk, `/api/v1/products/${slug}/parts`, {
-    method: 'POST',
-    body: JSON.stringify(input),
+export function saveSkeleton(sdk: SdkLike, slug: string, skeleton: Skeleton) {
+  return api<{ skeleton: Skeleton }>(sdk, `/api/v1/products/${slug}/skeleton`, {
+    method: 'PUT',
+    body: JSON.stringify(skeleton),
   });
-}
-
-export function removePart(sdk: SdkLike, slug: string, id: string) {
-  return api<void>(sdk, `/api/v1/products/${slug}/parts/${id}`, { method: 'DELETE' });
 }
 
 export function addTile(sdk: SdkLike, slug: string, input: { name: string; note: string }) {

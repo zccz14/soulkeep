@@ -3,6 +3,7 @@ import { DragDropProvider, PointerSensor } from '@dnd-kit/react';
 import { isSortable, useSortable } from '@dnd-kit/react/sortable';
 import { GripVertical } from 'lucide-react';
 import type { Concept, Soul } from '../api';
+import { useRowIds } from '../row-ids';
 
 /** 服务端也按这套上限拒收；这里照抄一份，写到边上就写不下去了。 */
 const STATEMENT_MAX = 160;
@@ -10,31 +11,6 @@ const TERM_MAX = 40;
 const DEFINITION_MAX = 400;
 
 const TRANSITION = { duration: 200, idle: true };
-
-let rowIdSeed = 0;
-const nextRowId = (prefix: string) => `${prefix}-${++rowIdSeed}`;
-
-/**
- * 灵魂里的一句话没有 id（它就是一段文字），但拖拽库要靠稳定的 key 认出"同一行"。
- * 这份 id 只活在这次编辑里：插入、删除、换序都跟着内容一起搬，别的地方看不见它。
- */
-function useRowIds(prefix: string, count: number) {
-  const ids = useRef<string[]>([]);
-  if (ids.current.length !== count) {
-    const next = ids.current.slice(0, count);
-    while (next.length < count) next.push(nextRowId(prefix));
-    ids.current = next;
-  }
-  return {
-    ids: ids.current,
-    insert: (at: number) => ids.current.splice(at, 0, nextRowId(prefix)),
-    remove: (at: number) => ids.current.splice(at, 1),
-    move: (from: number, to: number) => {
-      const [id] = ids.current.splice(from, 1);
-      ids.current.splice(to, 0, id);
-    },
-  };
-}
 
 /**
  * 灵魂的写作面：一句话一行，每一行永远处在可编辑状态。
