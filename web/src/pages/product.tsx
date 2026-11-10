@@ -3,16 +3,13 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuthMini } from 'auth-mini-react-components';
 import {
   addPart,
-  addPin,
   addTile,
   getProduct,
   removePart,
-  removePin,
   removeTile,
+  saveSoul,
   setTileState,
-  updatePin,
   type PartKind,
-  type PinView,
   type ProductDetail,
   type SdkLike,
   type TileState,
@@ -43,7 +40,7 @@ export function ProductPage() {
   if (error) return <ErrorNote error={error} />;
   if (!detail) return <Note>正在看它长成什么样…</Note>;
 
-  const { product, pins, parts, tiles } = detail;
+  const { product, soul, parts, tiles } = detail;
   const editable = detail.canEdit;
 
   return (
@@ -63,7 +60,7 @@ export function ProductPage() {
             <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">{product.oneLiner}</p>
           </div>
           <div className="flex gap-2">
-            <Badge tone="strong">{pins.length} 颗钉</Badge>
+            <Badge tone="strong">{soul.statements.length} 句</Badge>
             <Badge>{parts.length} 块骨架</Badge>
             <Badge>{tiles.length} 片血肉</Badge>
           </div>
@@ -71,7 +68,7 @@ export function ProductPage() {
       </header>
 
       <div className="flex flex-col gap-4">
-        <SoulPanel slug={product.slug} pins={pins} editable={editable} sdk={typed} onChanged={load} />
+        <SoulPanel slug={product.slug} statements={soul.statements} editable={editable} sdk={typed} onChanged={load} />
         <SkeletonPanel slug={product.slug} parts={parts} editable={editable} sdk={typed} onChanged={load} />
         <FleshPanel slug={product.slug} tiles={tiles} editable={editable} sdk={typed} onChanged={load} />
       </div>
@@ -83,155 +80,138 @@ export function ProductPage() {
 
 function SoulPanel({
   slug,
-  pins,
+  statements,
   editable,
   sdk,
   onChanged,
 }: {
   slug: string;
-  pins: ProductDetail['pins'];
+  statements: string[];
   editable: boolean;
   sdk: SdkLike | null;
   onChanged: () => void;
 }) {
   const [statement, setStatement] = useState('');
   const [error, setError] = useState<unknown>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
-  /** 正在编辑哪一颗：Enter、失焦、Esc 谁先来都只算一次。 */
-  const editing = useRef<string | null>(null);
+  /** 正在改第几条：Enter、失焦、Esc 谁先来都只算一次。 */
+  const editingAt = useRef<number | null>(null);
+  const [dragging, setDragging] = useState<number | null>(null);
+  const [over, setOver] = useState<number | null>(null);
 
-  const submit = async () => {
+  const save = async (next: string[]) => {
     if (!sdk) return;
     setError(null);
     try {
-      await addPin(sdk, slug, { statement });
-      setStatement('');
+      await saveSoul(sdk, slug, { version: 1, statements: next });
       onChanged();
     } catch (problem) {
       setError(problem);
     }
   };
 
-  const startEdit = (pin: PinView) => {
-    editing.current = pin.id;
-    setDraft(pin.statement);
-    setEditingId(pin.id);
+  const add = () => {
+    const next = statement.trim();
+    if (!next) return;
+    setStatement('');
+    void save([...statements, next]);
+  };
+
+  const startEdit = (index: number) => {
+    editingAt.current = index;
+    setDraft(statements[index]);
+    setEditing(index);
   };
 
   const stopEdit = () => {
-    editing.current = null;
-    setEditingId(null);
+    editingAt.current = null;
+    setEditing(null);
   };
 
-  const commit = async (pin: PinView) => {
-    if (editing.current !== pin.id) return;
+  const commit = (index: number) => {
+    if (editingAt.current !== index) return;
     const next = draft.trim();
     stopEdit();
-    if (!next || next === pin.statement || !sdk) return;
-    setError(null);
-    try {
-      await updatePin(sdk, slug, pin.id, { statement: next });
-      onChanged();
-    } catch (problem) {
-      setError(problem);
-    }
+    if (!next || next === statements[index]) return;
+    void save(statements.map((line, at) => (at === index ? next : line)));
   };
 
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [overIndex, setOverIndex] = useState<number | null>(null);
-
-  /** 松手就落到悬停的那一行，服务端按目标序号整串重排。 */
-  const dropOn = async (target: number) => {
-    const from = pins.findIndex((pin) => pin.id === draggingId);
-    setDraggingId(null);
-    setOverIndex(null);
-    if (from === -1 || from === target || !sdk) return;
-    setError(null);
-    try {
-      await updatePin(sdk, slug, pins[from].id, { slot: target });
-      onChanged();
-    } catch (problem) {
-      setError(problem);
-    }
-  };
-
-  const drop = async (id: string) => {
-    if (!sdk) return;
-    setError(null);
-    try {
-      await removePin(sdk, slug, id);
-      onChanged();
-    } catch (problem) {
-      setError(problem);
-    }
+  const dropOn = (target: number) => {
+    const from = dragging;
+    setDragging(null);
+    setOver(null);
+    if (from === null || from === target) return;
+    const rest = statements.filter((_, at) => at !== from);
+    rest.splice(target, 0, statements[from]);
+    void save(rest);
   };
 
   return (
     <Card className="flex flex-col gap-3">
-      <Title hint="钉子钉住轮廓">灵魂</Title>
-      <Note>拔掉一颗，形状就变。这里有且只有这几句，是别人替不了的。</Note>
+      <Title hint="一句话一条，顺序就是轻重">灵魂</Title>
+      <Note>这几句是别人替不了的。改一句、换个位置，都是在改它为什么还活着。</Note>
       <ErrorNote error={error} />
 
       <ul className="flex flex-col gap-1.5">
-        {pins.length === 0 ? <Empty>还没有钉子。轮廓现在还不存在。</Empty> : null}
-        {pins.map((pin, position) => (
+        {statements.length === 0 ? <Empty>还没有一句。它现在还没有形状。</Empty> : null}
+        {statements.map((line, index) => (
           <li
-            key={pin.id}
-            draggable={editable && editingId !== pin.id}
-            onDragStart={() => setDraggingId(pin.id)}
+            key={index}
+            draggable={editable && editing !== index}
+            onDragStart={() => setDragging(index)}
             onDragEnd={() => {
-              setDraggingId(null);
-              setOverIndex(null);
+              setDragging(null);
+              setOver(null);
             }}
             onDragOver={(event) => {
-              if (!draggingId || draggingId === pin.id) return;
+              if (dragging === null || dragging === index) return;
               event.preventDefault();
-              setOverIndex(position);
+              setOver(index);
             }}
             onDrop={(event) => {
               event.preventDefault();
-              void dropOn(position);
+              dropOn(index);
             }}
             className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs leading-relaxed transition ${
-              draggingId === pin.id
+              dragging === index
                 ? 'border-border opacity-40'
-                : overIndex === position && draggingId
+                : over === index && dragging !== null
                   ? 'border-foreground/50 bg-foreground/[0.05]'
                   : 'border-border'
-            } ${editable && editingId !== pin.id ? 'cursor-grab active:cursor-grabbing' : ''}`}
+            } ${editable && editing !== index ? 'cursor-grab active:cursor-grabbing' : ''}`}
           >
             {editable ? (
               <span aria-hidden className="mt-0.5 shrink-0 select-none px-0.5 text-sm leading-4 text-muted-foreground/50">
                 ⋮
               </span>
             ) : null}
-            {editingId === pin.id ? (
+            {editing === index ? (
               <input
                 autoFocus
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') void commit(pin);
+                  if (event.key === 'Enter') commit(index);
                   if (event.key === 'Escape') stopEdit();
                 }}
-                onBlur={() => void commit(pin)}
+                onBlur={() => commit(index)}
                 className="min-w-0 flex-1 rounded border border-input bg-background px-1.5 py-0.5 text-xs outline-none transition focus:border-foreground/40 focus:ring-2 focus:ring-ring/20"
               />
             ) : (
               <span
-                onClick={editable ? () => startEdit(pin) : undefined}
+                onClick={editable ? () => startEdit(index) : undefined}
                 className={`flex-1 ${editable ? '-mx-1 cursor-text rounded px-1 transition hover:bg-foreground/[0.04]' : ''}`}
               >
-                {pin.statement}
+                {line}
               </span>
             )}
-            {editable && editingId !== pin.id ? (
+            {editable && editing !== index ? (
               <button
                 type="button"
-                onClick={() => drop(pin.id)}
+                onClick={() => void save(statements.filter((_, at) => at !== index))}
                 className="shrink-0 text-muted-foreground transition hover:text-destructive"
-                aria-label="拔掉这颗钉"
+                aria-label="拿掉这一句"
               >
                 ×
               </button>
@@ -242,15 +222,18 @@ function SoulPanel({
 
       {editable ? (
         <div className="flex flex-col gap-2 border-t border-border pt-3">
-          <Field label="钉一句话上去">
+          <Field label="再加一句">
             <TextInput
               value={statement}
               onChange={(event) => setStatement(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') add();
+              }}
               placeholder="例如：绝不替创始人做身份决定。"
             />
           </Field>
-          <Button onClick={submit} disabled={!statement.trim()}>
-            钉下
+          <Button onClick={add} disabled={!statement.trim()}>
+            写进去
           </Button>
         </div>
       ) : null}
