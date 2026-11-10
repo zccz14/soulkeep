@@ -83,6 +83,8 @@ export interface TileView {
 
 export interface ProductDetail {
   product: ProductView;
+  /** 只有拥有者能改；这是服务端算好的结论，前端不再自己推断。 */
+  canEdit: boolean;
   pins: PinView[];
   parts: PartView[];
   tiles: TileView[];

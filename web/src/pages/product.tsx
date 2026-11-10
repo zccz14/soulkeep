@@ -27,7 +27,7 @@ const NEXT_STATE: Record<TileState, TileState> = { growing: 'pending', pending: 
 
 export function ProductPage() {
   const { slug = '' } = useParams();
-  const { sdk, isAuthenticated } = useAuthMini();
+  const { sdk } = useAuthMini();
   const typed = sdk as unknown as SdkLike | null;
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -45,7 +45,7 @@ export function ProductPage() {
   if (!detail) return <Note>正在看它长成什么样…</Note>;
 
   const { product, pins, parts, tiles } = detail;
-  const editable = isAuthenticated && !product.isSample;
+  const editable = detail.canEdit;
 
   return (
     <div className="flex flex-col gap-5">

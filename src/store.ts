@@ -14,6 +14,7 @@ export interface ProductRow {
   name: string;
   one_liner: string;
   visibility: 'private' | 'public';
+  is_sample: number;
   created_at: number;
   updated_at: number;
 }
@@ -98,6 +99,7 @@ export async function createProduct(
     name: input.name.trim(),
     one_liner: input.oneLiner.trim(),
     visibility: 'private',
+    is_sample: 0,
     created_at: now,
     updated_at: now,
   };

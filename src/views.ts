@@ -15,7 +15,7 @@ export function productView(row: ProductRow): ProductView {
     name: row.name,
     oneLiner: row.one_liner,
     visibility: row.visibility,
-    isSample: row.owner_user_id === 'demo',
+    isSample: row.is_sample === 1,
     updatedAt: row.updated_at,
   };
 }
