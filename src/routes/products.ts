@@ -22,7 +22,6 @@ import {
   setTileState,
   updateProduct,
   type PartKind,
-  type PinKind,
   type TileState,
 } from '../store';
 import { partView, pinView, productView, tileView } from '../views';
@@ -31,7 +30,6 @@ type Bindings = { Bindings: Env; Variables: { principal: Principal | null } };
 
 export const productRoutes = new Hono<Bindings>();
 
-const PIN_KINDS: PinKind[] = ['why', 'being', 'never', 'who'];
 const PART_KINDS: PartKind[] = ['concept', 'table', 'object', 'stack'];
 const TILE_STATES: TileState[] = ['growing', 'pending', 'shed'];
 
@@ -113,10 +111,7 @@ productRoutes.post('/:slug/pins', async (c) => {
   const principal = await requirePrincipal(c.req.raw, c.env);
   const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
   const body = await c.req.json().catch(() => ({}));
-  const pin = await addPin(c.env, product, {
-    kind: oneOf(body.kind, PIN_KINDS, '钉子类型', 'being'),
-    statement: text(body.statement, '这句话', 160),
-  });
+  const pin = await addPin(c.env, product, { statement: text(body.statement, '这句话', 160) });
   return c.json({ pin: pinView(pin) }, 201);
 });
 
@@ -128,7 +123,6 @@ productRoutes.patch('/:slug/pins/:pinId', async (c) => {
   if (body.slot !== undefined) await movePin(c.env, product, id, index(body.slot, '次序'));
   const pin = await updatePin(c.env, product, id, {
     statement: body.statement === undefined ? undefined : text(body.statement, '这句话', 160),
-    kind: body.kind === undefined ? undefined : oneOf(body.kind, PIN_KINDS, '钉子类型', 'being'),
   });
   return c.json({ pin: pinView(pin) });
 });
