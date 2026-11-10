@@ -1,6 +1,6 @@
 import type { Env } from './env';
 import { fail } from './http';
-import { SLOT_STEP, slotBetween } from './order';
+import { rankBetween } from './rank';
 import { newId, nowSeconds, toSlug } from './ids';
 import type { Principal } from './auth';
 
@@ -23,7 +23,7 @@ export interface PinRow {
   id: string;
   product_id: string;
   statement: string;
-  slot: number;
+  rank: string;
   created_at: number;
 }
 
@@ -136,7 +136,7 @@ export async function deleteProduct(env: Env, product: ProductRow): Promise<void
 
 export async function listPins(env: Env, productId: string): Promise<PinRow[]> {
   const { results } = await env.DB.prepare(
-    `SELECT * FROM soul_pins WHERE product_id = ? ORDER BY slot ASC, created_at ASC`,
+    `SELECT * FROM soul_pins WHERE product_id = ? ORDER BY rank ASC, created_at ASC`,
   )
     .bind(productId)
     .all<PinRow>();
@@ -148,20 +148,20 @@ export async function addPin(
   product: ProductRow,
   input: { statement: string },
 ): Promise<PinRow> {
-  const last = await env.DB.prepare(`SELECT MAX(slot) AS slot FROM soul_pins WHERE product_id = ?`)
+  const last = await env.DB.prepare(`SELECT rank FROM soul_pins WHERE product_id = ? ORDER BY rank DESC LIMIT 1`)
     .bind(product.id)
-    .first<{ slot: number | null }>();
+    .first<{ rank: string }>();
   const row: PinRow = {
     id: newId('pin'),
     product_id: product.id,
     statement: input.statement.trim(),
-    slot: (last?.slot ?? 0) + SLOT_STEP,
+    rank: rankBetween(last?.rank ?? null, null),
     created_at: nowSeconds(),
   };
   await env.DB.prepare(
-    `INSERT INTO soul_pins (id, product_id, statement, slot, created_at) VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO soul_pins (id, product_id, statement, rank, created_at) VALUES (?, ?, ?, ?, ?)`,
   )
-    .bind(row.id, row.product_id, row.statement, row.slot, row.created_at)
+    .bind(row.id, row.product_id, row.statement, row.rank, row.created_at)
     .run();
   await touch(env, product.id);
   return row;
@@ -199,18 +199,8 @@ export async function movePin(
   const to = Math.min(Math.max(Math.trunc(target), 0), rows.length - 1);
   if (to === from) return;
   const rest = rows.filter((row) => row.id !== pinId);
-  const slot = slotBetween(rest[to - 1]?.slot ?? null, rest[to]?.slot ?? null);
-  if (slot === null) {
-    // 同一处被连着挪了上千次，空档磨平：这一次整串重排，重新留出空档。
-    const ordered = [...rest.slice(0, to), rows[from], ...rest.slice(to)];
-    await env.DB.batch(
-      ordered.map((row, index) =>
-        env.DB.prepare(`UPDATE soul_pins SET slot = ? WHERE id = ?`).bind((index + 1) * SLOT_STEP, row.id),
-      ),
-    );
-  } else {
-    await env.DB.prepare(`UPDATE soul_pins SET slot = ? WHERE id = ?`).bind(slot, pinId).run();
-  }
+  const rank = rankBetween(rest[to - 1]?.rank ?? null, rest[to]?.rank ?? null);
+  await env.DB.prepare(`UPDATE soul_pins SET rank = ? WHERE id = ?`).bind(rank, pinId).run();
   await touch(env, product.id);
 }
 
