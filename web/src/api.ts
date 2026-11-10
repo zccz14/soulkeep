@@ -63,8 +63,6 @@ export interface PinView {
   id: string;
   kind: PinKind;
   statement: string;
-  angle: number;
-  reach: number;
 }
 
 export interface PartView {
@@ -109,6 +107,19 @@ export function addPin(sdk: SdkLike, slug: string, input: Omit<PinView, 'id'>) {
   return api<{ pin: PinView }>(sdk, `/api/v1/products/${slug}/pins`, {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+/** 改一句话，或者把它挪到第 slot 位。 */
+export function updatePin(
+  sdk: SdkLike,
+  slug: string,
+  id: string,
+  patch: { statement?: string; kind?: PinKind; slot?: number },
+) {
+  return api<{ pin: PinView }>(sdk, `/api/v1/products/${slug}/pins/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
   });
 }
 
