@@ -1,4 +1,4 @@
-import type { PartRow, PinRow, ProductRow, TileRow } from './store';
+import type { PartRow, ProductRow, TileRow } from './store';
 
 export interface ProductView {
   slug: string;
@@ -18,10 +18,6 @@ export function productView(row: ProductRow): ProductView {
     isSample: row.is_sample === 1,
     updatedAt: row.updated_at,
   };
-}
-
-export function pinView(row: PinRow) {
-  return { id: row.id, statement: row.statement };
 }
 
 export function partView(row: PartRow) {

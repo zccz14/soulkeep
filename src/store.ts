@@ -1,7 +1,7 @@
 import type { Env } from './env';
 import { fail } from './http';
-import { rankBetween } from './rank';
 import { newId, nowSeconds, toSlug } from './ids';
+import { EMPTY_SOUL, parseSoul, type Soul } from './soul';
 import type { Principal } from './auth';
 
 export type PartKind = 'concept' | 'table' | 'object' | 'stack';
@@ -15,16 +15,9 @@ export interface ProductRow {
   one_liner: string;
   visibility: 'private' | 'public';
   is_sample: number;
+  soul: string;
   created_at: number;
   updated_at: number;
-}
-
-export interface PinRow {
-  id: string;
-  product_id: string;
-  statement: string;
-  rank: string;
-  created_at: number;
 }
 
 export interface PartRow {
@@ -74,6 +67,18 @@ export async function loadProduct(env: Env, slug: string, principal: Principal |
   return fail(404, 'not_found', '没有这个产品');
 }
 
+/** 灵魂就存在产品这一行里：读出来就是一份已经校验过的 JSON。 */
+export function readSoul(row: ProductRow): Soul {
+  return parseSoul(row.soul);
+}
+
+export async function writeSoul(env: Env, product: ProductRow, soul: Soul): Promise<void> {
+  await env.DB.prepare(`UPDATE products SET soul = ? WHERE id = ?`)
+    .bind(JSON.stringify(soul), product.id)
+    .run();
+  await touch(env, product.id);
+}
+
 /** 写：只有拥有者能改自己养的那一个。 */
 export async function loadOwnProduct(env: Env, slug: string, principal: Principal): Promise<ProductRow> {
   const row = await env.DB.prepare(`SELECT * FROM products WHERE slug = ?`)
@@ -98,6 +103,7 @@ export async function createProduct(
     one_liner: input.oneLiner.trim(),
     visibility: 'private',
     is_sample: 0,
+    soul: JSON.stringify(EMPTY_SOUL),
     created_at: now,
     updated_at: now,
   };
@@ -134,81 +140,8 @@ export async function deleteProduct(env: Env, product: ProductRow): Promise<void
   await env.DB.prepare(`DELETE FROM products WHERE id = ?`).bind(product.id).run();
 }
 
-export async function listPins(env: Env, productId: string): Promise<PinRow[]> {
-  const { results } = await env.DB.prepare(
-    `SELECT * FROM soul_pins WHERE product_id = ? ORDER BY rank ASC, created_at ASC`,
-  )
-    .bind(productId)
-    .all<PinRow>();
-  return results ?? [];
-}
-
-export async function addPin(
-  env: Env,
-  product: ProductRow,
-  input: { statement: string },
-): Promise<PinRow> {
-  const last = await env.DB.prepare(`SELECT rank FROM soul_pins WHERE product_id = ? ORDER BY rank DESC LIMIT 1`)
-    .bind(product.id)
-    .first<{ rank: string }>();
-  const row: PinRow = {
-    id: newId('pin'),
-    product_id: product.id,
-    statement: input.statement.trim(),
-    rank: rankBetween(last?.rank ?? null, null),
-    created_at: nowSeconds(),
-  };
-  await env.DB.prepare(
-    `INSERT INTO soul_pins (id, product_id, statement, rank, created_at) VALUES (?, ?, ?, ?, ?)`,
-  )
-    .bind(row.id, row.product_id, row.statement, row.rank, row.created_at)
-    .run();
-  await touch(env, product.id);
-  return row;
-}
-
 /** 改一句话或改一类，不动次序。 */
-export async function updatePin(
-  env: Env,
-  product: ProductRow,
-  pinId: string,
-  input: { statement?: string },
-): Promise<PinRow> {
-  const row = await env.DB.prepare(`SELECT * FROM soul_pins WHERE id = ? AND product_id = ?`)
-    .bind(pinId, product.id)
-    .first<PinRow>();
-  if (!row) return fail(404, 'not_found', '没有这颗钉');
-  const next: PinRow = { ...row, statement: input.statement ?? row.statement };
-  await env.DB.prepare(`UPDATE soul_pins SET statement = ? WHERE id = ?`)
-    .bind(next.statement, next.id)
-    .run();
-  await touch(env, product.id);
-  return next;
-}
-
 /** 挪到第 target 位：整串重排一次，次序永远是 0..n-1。 */
-export async function movePin(
-  env: Env,
-  product: ProductRow,
-  pinId: string,
-  target: number,
-): Promise<void> {
-  const rows = await listPins(env, product.id);
-  const from = rows.findIndex((row) => row.id === pinId);
-  if (from === -1) return fail(404, 'not_found', '没有这颗钉');
-  const to = Math.min(Math.max(Math.trunc(target), 0), rows.length - 1);
-  if (to === from) return;
-  const rest = rows.filter((row) => row.id !== pinId);
-  const rank = rankBetween(rest[to - 1]?.rank ?? null, rest[to]?.rank ?? null);
-  await env.DB.prepare(`UPDATE soul_pins SET rank = ? WHERE id = ?`).bind(rank, pinId).run();
-  await touch(env, product.id);
-}
-
-export async function deletePin(env: Env, product: ProductRow, pinId: string): Promise<void> {
-  await env.DB.prepare(`DELETE FROM soul_pins WHERE id = ? AND product_id = ?`).bind(pinId, product.id).run();
-  await touch(env, product.id);
-}
-
 export async function listParts(env: Env, productId: string): Promise<PartRow[]> {
   const { results } = await env.DB.prepare(
     `SELECT * FROM skeleton_parts WHERE product_id = ? ORDER BY slot ASC`,

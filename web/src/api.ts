@@ -58,11 +58,6 @@ export interface ProductView {
   updatedAt: number;
 }
 
-export interface PinView {
-  id: string;
-  statement: string;
-}
-
 export interface PartView {
   id: string;
   kind: PartKind;
@@ -77,11 +72,16 @@ export interface TileView {
   note: string;
 }
 
+export interface Soul {
+  version: 1;
+  statements: string[];
+}
+
 export interface ProductDetail {
   product: ProductView;
   /** 只有拥有者能改；这是服务端算好的结论，前端不再自己推断。 */
   canEdit: boolean;
-  pins: PinView[];
+  soul: Soul;
   parts: PartView[];
   tiles: TileView[];
 }
@@ -101,28 +101,12 @@ export function createProduct(sdk: SdkLike, input: { name: string; oneLiner: str
   });
 }
 
-export function addPin(sdk: SdkLike, slug: string, input: Omit<PinView, 'id'>) {
-  return api<{ pin: PinView }>(sdk, `/api/v1/products/${slug}/pins`, {
-    method: 'POST',
-    body: JSON.stringify(input),
+/** 灵魂整份写回：顺序就是数组顺序，不需要任何序号。 */
+export function saveSoul(sdk: SdkLike, slug: string, soul: Soul) {
+  return api<{ soul: Soul }>(sdk, `/api/v1/products/${slug}/soul`, {
+    method: 'PUT',
+    body: JSON.stringify(soul),
   });
-}
-
-/** 改一句话，或者把它挪到第 slot 位。 */
-export function updatePin(
-  sdk: SdkLike,
-  slug: string,
-  id: string,
-  patch: { statement?: string; slot?: number },
-) {
-  return api<{ pin: PinView }>(sdk, `/api/v1/products/${slug}/pins/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
-  });
-}
-
-export function removePin(sdk: SdkLike, slug: string, id: string) {
-  return api<void>(sdk, `/api/v1/products/${slug}/pins/${id}`, { method: 'DELETE' });
 }
 
 export function addPart(sdk: SdkLike, slug: string, input: Omit<PartView, 'id'>) {

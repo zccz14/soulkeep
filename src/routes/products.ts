@@ -4,27 +4,25 @@ import { fail } from '../http';
 import { principalOf, requirePrincipal, type Principal } from '../auth';
 import {
   addPart,
-  addPin,
   addTile,
   createProduct,
   deletePart,
-  deletePin,
   deleteProduct,
   deleteTile,
   listParts,
-  listPins,
   listProducts,
   listTiles,
   loadOwnProduct,
-  movePin,
-  updatePin,
   loadProduct,
+  readSoul,
   setTileState,
   updateProduct,
+  writeSoul,
   type PartKind,
   type TileState,
 } from '../store';
-import { partView, pinView, productView, tileView } from '../views';
+import { normalizeSoul } from '../soul';
+import { partView, productView, tileView } from '../views';
 
 type Bindings = { Bindings: Env; Variables: { principal: Principal | null } };
 
@@ -39,14 +37,6 @@ function text(value: unknown, field: string, max: number): string {
   if (!trimmed) return fail(400, 'bad_request', `${field} 不能为空`);
   if (trimmed.length > max) return fail(400, 'bad_request', `${field} 最多 ${max} 个字`);
   return trimmed;
-}
-
-function index(value: unknown, field: string): number {
-  const parsed = typeof value === 'number' ? value : Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 999) {
-    return fail(400, 'bad_request', `${field} 必须是不小于 0 的整数`);
-  }
-  return parsed;
 }
 
 function oneOf<T extends string>(value: unknown, allowed: T[], field: string, fallback: T): T {
@@ -73,15 +63,11 @@ productRoutes.post('/', async (c) => {
 productRoutes.get('/:slug', async (c) => {
   const principal = await principalOf(c.req.raw, c.env);
   const product = await loadProduct(c.env, c.req.param('slug'), principal);
-  const [pins, parts, tiles] = await Promise.all([
-    listPins(c.env, product.id),
-    listParts(c.env, product.id),
-    listTiles(c.env, product.id),
-  ]);
+  const [parts, tiles] = await Promise.all([listParts(c.env, product.id), listTiles(c.env, product.id)]);
   return c.json({
     product: productView(product),
     canEdit: principal !== null && principal.userId === product.owner_user_id,
-    pins: pins.map(pinView),
+    soul: readSoul(product),
     parts: parts.map(partView),
     tiles: tiles.map(tileView),
   });
@@ -107,31 +93,12 @@ productRoutes.delete('/:slug', async (c) => {
   return c.body(null, 204);
 });
 
-productRoutes.post('/:slug/pins', async (c) => {
+productRoutes.put('/:slug/soul', async (c) => {
   const principal = await requirePrincipal(c.req.raw, c.env);
   const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
-  const body = await c.req.json().catch(() => ({}));
-  const pin = await addPin(c.env, product, { statement: text(body.statement, '这句话', 160) });
-  return c.json({ pin: pinView(pin) }, 201);
-});
-
-productRoutes.patch('/:slug/pins/:pinId', async (c) => {
-  const principal = await requirePrincipal(c.req.raw, c.env);
-  const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
-  const id = c.req.param('pinId');
-  const body = await c.req.json().catch(() => ({}));
-  if (body.slot !== undefined) await movePin(c.env, product, id, index(body.slot, '次序'));
-  const pin = await updatePin(c.env, product, id, {
-    statement: body.statement === undefined ? undefined : text(body.statement, '这句话', 160),
-  });
-  return c.json({ pin: pinView(pin) });
-});
-
-productRoutes.delete('/:slug/pins/:pinId', async (c) => {
-  const principal = await requirePrincipal(c.req.raw, c.env);
-  const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
-  await deletePin(c.env, product, c.req.param('pinId'));
-  return c.body(null, 204);
+  const soul = normalizeSoul(await c.req.json().catch(() => null));
+  await writeSoul(c.env, product, soul);
+  return c.json({ soul });
 });
 
 productRoutes.post('/:slug/parts', async (c) => {
