@@ -3,6 +3,7 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   AUTH_ISSUER: string;
+  /** 逗号分隔的资源清单：本站、Cybion、Linkit。 */
   AUTH_AUDIENCE: string;
   APP_ORIGIN?: string;
   /** 仅本地开发：把身份固定成这个用户，生产环境永远不设置。 */

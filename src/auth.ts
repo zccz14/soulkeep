@@ -31,6 +31,16 @@ export function bearerOf(request: Request): string | null {
   return match ? match[1].trim() : null;
 }
 
+/**
+ * audience 是一份资源清单，不是本站域名：同一把令牌也要能拿去调 Cybion 与 Linkit，
+ * 所以 AUTH_AUDIENCE 由 wrangler 配成逗号分隔的列表，令牌命中其中任何一个都认。
+ */
+function audiencesOf(env: Env): string[] {
+  return env.AUTH_AUDIENCE.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 /** 可匿名：没有 Authorization 时返回 null，不报错。 */
 export async function principalOf(request: Request, env: Env): Promise<Principal | null> {
   const raw = bearerOf(request);
@@ -39,7 +49,7 @@ export async function principalOf(request: Request, env: Env): Promise<Principal
   try {
     const { payload } = await jwtVerify(raw, keySet(env.AUTH_ISSUER), {
       issuer: env.AUTH_ISSUER,
-      audience: env.AUTH_AUDIENCE,
+      audience: audiencesOf(env),
     });
     if (!payload.sub) return fail(401, 'unauthorized', '令牌缺少 sub');
     return { userId: payload.sub, kind: 'user' };

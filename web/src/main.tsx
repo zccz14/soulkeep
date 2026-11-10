@@ -16,7 +16,7 @@ createRoot(root).render(
   <StrictMode>
     <AuthMiniProvider
       authMiniBaseUrl="https://auth.ntnl.io"
-      audiences={['soulkeep.ntnl.io']}
+      audiences={['soulkeep.ntnl.io', 'cybion.ntnl.io', 'linkit.ntnl.io']}
       autoRedirectToLogin={false}
     >
       <LinkitProvider linkitBaseUrl="https://linkit.ntnl.io" lang="zh-CN">

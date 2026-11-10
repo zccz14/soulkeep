@@ -22,10 +22,11 @@
     }
   ],
 
-  // 创始人用 Auth Mini 登录；audience 就是本站域名，和其他 NTNL 应用一致。
+  // 创始人用 Auth Mini 登录。audience 是资源清单：Soulkeep 这把令牌还要拿去调 Cybion，
+  // 所以本站、Cybion、Linkit 都列进来，令牌命中任何一个都认。
   "vars": {
     "AUTH_ISSUER": "https://auth.ntnl.io",
-    "AUTH_AUDIENCE": "soulkeep.ntnl.io",
+    "AUTH_AUDIENCE": "soulkeep.ntnl.io,cybion.ntnl.io,linkit.ntnl.io",
     "APP_ORIGIN": "https://soulkeep.ntnl.io"
   },
 
