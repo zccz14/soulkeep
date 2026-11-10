@@ -81,6 +81,7 @@ productRoutes.get('/:slug', async (c) => {
   ]);
   return c.json({
     product: productView(product),
+    canEdit: principal !== null && principal.userId === product.owner_user_id,
     pins: pins.map(pinView),
     parts: parts.map(partView),
     tiles: tiles.map(tileView),
