@@ -46,7 +46,7 @@ export async function api<T>(sdk: SdkLike | null, path: string, init?: RequestIn
   return parsed as T;
 }
 
-export type PartKind = 'concept' | 'table' | 'object' | 'stack';
+export type PartKind = 'table' | 'object' | 'stack';
 export type TileState = 'growing' | 'pending' | 'shed';
 
 export interface ProductView {
@@ -72,9 +72,15 @@ export interface TileView {
   note: string;
 }
 
+export interface Concept {
+  term: string;
+  definition: string;
+}
+
 export interface Soul {
   version: 1;
   statements: string[];
+  concepts: Concept[];
 }
 
 export interface ProductDetail {

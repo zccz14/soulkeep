@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuthMini } from 'auth-mini-react-components';
 import {
@@ -11,13 +11,15 @@ import {
   setTileState,
   type PartKind,
   type ProductDetail,
+  type Soul,
   type SdkLike,
   type TileState,
 } from '../api';
+import { SoulEditor } from '../components/soul-editor';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Kicker, Note, Select, TextInput, Title } from '../ui';
 
-const PART_KINDS: PartKind[] = ['concept', 'table', 'object', 'stack'];
-const PART_LABEL: Record<PartKind, string> = { concept: '概念', table: '表', object: '对外对象', stack: '技术栈' };
+const PART_KINDS: PartKind[] = ['table', 'object', 'stack'];
+const PART_LABEL: Record<PartKind, string> = { table: '表', object: '对外对象', stack: '技术栈' };
 const TILE_LABEL: Record<TileState, string> = { growing: '长着', pending: '待补', shed: '已脱落' };
 const NEXT_STATE: Record<TileState, TileState> = { growing: 'pending', pending: 'shed', shed: 'growing' };
 
@@ -68,7 +70,7 @@ export function ProductPage() {
       </header>
 
       <div className="flex flex-col gap-4">
-        <SoulPanel slug={product.slug} statements={soul.statements} editable={editable} sdk={typed} onChanged={load} />
+        <SoulPanel slug={product.slug} soul={soul} editable={editable} sdk={typed} onChanged={load} />
         <SkeletonPanel slug={product.slug} parts={parts} editable={editable} sdk={typed} onChanged={load} />
         <FleshPanel slug={product.slug} tiles={tiles} editable={editable} sdk={typed} onChanged={load} />
       </div>
@@ -80,161 +82,57 @@ export function ProductPage() {
 
 function SoulPanel({
   slug,
-  statements,
+  soul,
   editable,
   sdk,
   onChanged,
 }: {
   slug: string;
-  statements: string[];
+  soul: Soul;
   editable: boolean;
   sdk: SdkLike | null;
   onChanged: () => void;
 }) {
-  const [statement, setStatement] = useState('');
+  const [draft, setDraft] = useState<Soul>(soul);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [editing, setEditing] = useState<number | null>(null);
-  const [draft, setDraft] = useState('');
-  /** 正在改第几条：Enter、失焦、Esc 谁先来都只算一次。 */
-  const editingAt = useRef<number | null>(null);
-  const [dragging, setDragging] = useState<number | null>(null);
-  const [over, setOver] = useState<number | null>(null);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(soul);
 
-  const save = async (next: string[]) => {
+  useEffect(() => {
+    setDraft(soul);
+  }, [soul]);
+
+  const save = async () => {
     if (!sdk) return;
+    setSaving(true);
     setError(null);
     try {
-      await saveSoul(sdk, slug, { version: 1, statements: next });
+      await saveSoul(sdk, slug, draft);
       onChanged();
     } catch (problem) {
       setError(problem);
+    } finally {
+      setSaving(false);
     }
-  };
-
-  const add = () => {
-    const next = statement.trim();
-    if (!next) return;
-    setStatement('');
-    void save([...statements, next]);
-  };
-
-  const startEdit = (index: number) => {
-    editingAt.current = index;
-    setDraft(statements[index]);
-    setEditing(index);
-  };
-
-  const stopEdit = () => {
-    editingAt.current = null;
-    setEditing(null);
-  };
-
-  const commit = (index: number) => {
-    if (editingAt.current !== index) return;
-    const next = draft.trim();
-    stopEdit();
-    if (!next || next === statements[index]) return;
-    void save(statements.map((line, at) => (at === index ? next : line)));
-  };
-
-  const dropOn = (target: number) => {
-    const from = dragging;
-    setDragging(null);
-    setOver(null);
-    if (from === null || from === target) return;
-    const rest = statements.filter((_, at) => at !== from);
-    rest.splice(target, 0, statements[from]);
-    void save(rest);
   };
 
   return (
     <Card className="flex flex-col gap-3">
       <Title hint="一句话一条，顺序就是轻重">灵魂</Title>
-      <Note>这几句是别人替不了的。改一句、换个位置，都是在改它为什么还活着。</Note>
+      <Note>改的都是草稿，点保存才写回去；没保存就离开这一页，草稿就没了。</Note>
       <ErrorNote error={error} />
 
-      <ul className="flex flex-col gap-1.5">
-        {statements.length === 0 ? <Empty>还没有一句。它现在还没有形状。</Empty> : null}
-        {statements.map((line, index) => (
-          <li
-            key={index}
-            draggable={editable && editing !== index}
-            onDragStart={() => setDragging(index)}
-            onDragEnd={() => {
-              setDragging(null);
-              setOver(null);
-            }}
-            onDragOver={(event) => {
-              if (dragging === null || dragging === index) return;
-              event.preventDefault();
-              setOver(index);
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              dropOn(index);
-            }}
-            className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs leading-relaxed transition ${
-              dragging === index
-                ? 'border-border opacity-40'
-                : over === index && dragging !== null
-                  ? 'border-foreground/50 bg-foreground/[0.05]'
-                  : 'border-border'
-            } ${editable && editing !== index ? 'cursor-grab active:cursor-grabbing' : ''}`}
-          >
-            {editable ? (
-              <span aria-hidden className="mt-0.5 shrink-0 select-none px-0.5 text-sm leading-4 text-muted-foreground/50">
-                ⋮
-              </span>
-            ) : null}
-            {editing === index ? (
-              <input
-                autoFocus
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') commit(index);
-                  if (event.key === 'Escape') stopEdit();
-                }}
-                onBlur={() => commit(index)}
-                className="min-w-0 flex-1 rounded border border-input bg-background px-1.5 py-0.5 text-xs outline-none transition focus:border-foreground/40 focus:ring-2 focus:ring-ring/20"
-              />
-            ) : (
-              <span
-                onClick={editable ? () => startEdit(index) : undefined}
-                className={`flex-1 ${editable ? '-mx-1 cursor-text rounded px-1 transition hover:bg-foreground/[0.04]' : ''}`}
-              >
-                {line}
-              </span>
-            )}
-            {editable && editing !== index ? (
-              <button
-                type="button"
-                onClick={() => void save(statements.filter((_, at) => at !== index))}
-                className="shrink-0 text-muted-foreground transition hover:text-destructive"
-                aria-label="拿掉这一句"
-              >
-                ×
-              </button>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+      <SoulEditor value={draft} editable={editable} onChange={setDraft} />
 
       {editable ? (
-        <div className="flex flex-col gap-2 border-t border-border pt-3">
-          <Field label="再加一句">
-            <TextInput
-              value={statement}
-              onChange={(event) => setStatement(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') add();
-              }}
-              placeholder="例如：绝不替创始人做身份决定。"
-            />
-          </Field>
-          <Button onClick={add} disabled={!statement.trim()}>
-            写进去
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          <Button onClick={save} disabled={!dirty || saving}>
+            {saving ? '保存中…' : '保存'}
           </Button>
+          <Button variant="quiet" onClick={() => setDraft(soul)} disabled={!dirty || saving}>
+            放弃修改
+          </Button>
+          <span className="text-xs text-muted-foreground">{dirty ? '有未保存的改动' : '和线上一致'}</span>
         </div>
       ) : null}
     </Card>
@@ -254,7 +152,7 @@ function SkeletonPanel({
   sdk: SdkLike | null;
   onChanged: () => void;
 }) {
-  const [kind, setKind] = useState<PartKind>('concept');
+  const [kind, setKind] = useState<PartKind>('table');
   const [name, setName] = useState('');
   const [error, setError] = useState<unknown>(null);
 
