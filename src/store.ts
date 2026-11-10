@@ -1,10 +1,10 @@
 import type { Env } from './env';
 import { fail } from './http';
 import { newId, nowSeconds, toSlug } from './ids';
+import { EMPTY_SKELETON, parseSkeleton, type Skeleton } from './skeleton';
 import { EMPTY_SOUL, parseSoul, type Soul } from './soul';
 import type { Principal } from './auth';
 
-export type PartKind = 'table' | 'object' | 'stack';
 export type TileState = 'growing' | 'pending' | 'shed';
 
 export interface ProductRow {
@@ -16,18 +16,9 @@ export interface ProductRow {
   visibility: 'private' | 'public';
   is_sample: number;
   soul: string;
+  skeleton: string;
   created_at: number;
   updated_at: number;
-}
-
-export interface PartRow {
-  id: string;
-  product_id: string;
-  kind: PartKind;
-  name: string;
-  note: string;
-  slot: number;
-  created_at: number;
 }
 
 export interface TileRow {
@@ -79,6 +70,18 @@ export async function writeSoul(env: Env, product: ProductRow, soul: Soul): Prom
   await touch(env, product.id);
 }
 
+/** 骨架同样是一份文档：表与表的关系，存成已校验过的 JSON。 */
+export function readSkeleton(row: ProductRow): Skeleton {
+  return parseSkeleton(row.skeleton);
+}
+
+export async function writeSkeleton(env: Env, product: ProductRow, skeleton: Skeleton): Promise<void> {
+  await env.DB.prepare(`UPDATE products SET skeleton = ? WHERE id = ?`)
+    .bind(JSON.stringify(skeleton), product.id)
+    .run();
+  await touch(env, product.id);
+}
+
 /** 写：只有拥有者能改自己养的那一个。 */
 export async function loadOwnProduct(env: Env, slug: string, principal: Principal): Promise<ProductRow> {
   const row = await env.DB.prepare(`SELECT * FROM products WHERE slug = ?`)
@@ -104,6 +107,7 @@ export async function createProduct(
     visibility: 'private',
     is_sample: 0,
     soul: JSON.stringify(EMPTY_SOUL),
+    skeleton: JSON.stringify(EMPTY_SKELETON),
     created_at: now,
     updated_at: now,
   };
@@ -138,48 +142,6 @@ export async function updateProduct(
 
 export async function deleteProduct(env: Env, product: ProductRow): Promise<void> {
   await env.DB.prepare(`DELETE FROM products WHERE id = ?`).bind(product.id).run();
-}
-
-/** 改一句话或改一类，不动次序。 */
-/** 挪到第 target 位：整串重排一次，次序永远是 0..n-1。 */
-export async function listParts(env: Env, productId: string): Promise<PartRow[]> {
-  const { results } = await env.DB.prepare(
-    `SELECT * FROM skeleton_parts WHERE product_id = ? ORDER BY slot ASC`,
-  )
-    .bind(productId)
-    .all<PartRow>();
-  return results ?? [];
-}
-
-export async function addPart(
-  env: Env,
-  product: ProductRow,
-  input: { kind: PartKind; name: string; note: string },
-): Promise<PartRow> {
-  const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM skeleton_parts WHERE product_id = ?`)
-    .bind(product.id)
-    .first<{ n: number }>();
-  const row: PartRow = {
-    id: newId('part'),
-    product_id: product.id,
-    kind: input.kind,
-    name: input.name.trim(),
-    note: input.note.trim(),
-    slot: count?.n ?? 0,
-    created_at: nowSeconds(),
-  };
-  await env.DB.prepare(
-    `INSERT INTO skeleton_parts (id, product_id, kind, name, note, slot, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(row.id, row.product_id, row.kind, row.name, row.note, row.slot, row.created_at)
-    .run();
-  await touch(env, product.id);
-  return row;
-}
-
-export async function deletePart(env: Env, product: ProductRow, partId: string): Promise<void> {
-  await env.DB.prepare(`DELETE FROM skeleton_parts WHERE id = ? AND product_id = ?`).bind(partId, product.id).run();
-  await touch(env, product.id);
 }
 
 export async function listTiles(env: Env, productId: string): Promise<TileRow[]> {

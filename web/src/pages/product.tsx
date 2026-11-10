@@ -2,22 +2,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuthMini } from 'auth-mini-react-components';
 import {
-  addPart,
   addTile,
   getProduct,
-  removePart,
   removeTile,
   setTileState,
-  type PartKind,
   type ProductDetail,
+  type Skeleton,
   type Soul,
   type SdkLike,
   type TileState,
 } from '../api';
-import { Badge, Button, buttonClass, Card, Empty, ErrorNote, Field, Kicker, Note, Select, TextInput, Title } from '../ui';
+import { CARDINALITY_LABEL } from '../skeleton';
+import { Badge, Button, buttonClass, Card, Empty, ErrorNote, Field, Kicker, Note, TextInput, Title } from '../ui';
 
-const PART_KINDS: PartKind[] = ['table', 'object', 'stack'];
-const PART_LABEL: Record<PartKind, string> = { table: '表', object: '对外对象', stack: '技术栈' };
 const TILE_LABEL: Record<TileState, string> = { growing: '长着', pending: '待补', shed: '已脱落' };
 const NEXT_STATE: Record<TileState, TileState> = { growing: 'pending', pending: 'shed', shed: 'growing' };
 
@@ -40,7 +37,7 @@ export function ProductPage() {
   if (error) return <ErrorNote error={error} />;
   if (!detail) return <Note>正在看它长成什么样…</Note>;
 
-  const { product, soul, parts, tiles } = detail;
+  const { product, soul, skeleton, tiles } = detail;
   const editable = detail.canEdit;
 
   return (
@@ -61,7 +58,8 @@ export function ProductPage() {
           </div>
           <div className="flex gap-2">
             <Badge tone="strong">{soul.statements.length} 句</Badge>
-            <Badge>{parts.length} 块骨架</Badge>
+            <Badge>{skeleton.tables.length} 张表</Badge>
+            <Badge>{skeleton.relations.length} 条关系</Badge>
             <Badge>{tiles.length} 片血肉</Badge>
           </div>
         </div>
@@ -69,7 +67,7 @@ export function ProductPage() {
 
       <div className="flex flex-col gap-4">
         <SoulPanel slug={product.slug} soul={soul} canEdit={editable} />
-        <SkeletonPanel slug={product.slug} parts={parts} editable={editable} sdk={typed} onChanged={load} />
+        <SkeletonPanel slug={product.slug} skeleton={skeleton} canEdit={editable} />
         <FleshPanel slug={product.slug} tiles={tiles} editable={editable} sdk={typed} onChanged={load} />
       </div>
 
@@ -121,94 +119,47 @@ function SoulPanel({ slug, soul, canEdit }: { slug: string; soul: Soul; canEdit:
   );
 }
 
-function SkeletonPanel({
-  slug,
-  parts,
-  editable,
-  sdk,
-  onChanged,
-}: {
-  slug: string;
-  parts: ProductDetail['parts'];
-  editable: boolean;
-  sdk: SdkLike | null;
-  onChanged: () => void;
-}) {
-  const [kind, setKind] = useState<PartKind>('table');
-  const [name, setName] = useState('');
-  const [error, setError] = useState<unknown>(null);
-
-  const submit = async () => {
-    if (!sdk) return;
-    setError(null);
-    try {
-      await addPart(sdk, slug, { kind, name, note: '' });
-      setName('');
-      onChanged();
-    } catch (problem) {
-      setError(problem);
-    }
-  };
-
-  const drop = async (id: string) => {
-    if (!sdk) return;
-    setError(null);
-    try {
-      await removePart(sdk, slug, id);
-      onChanged();
-    } catch (problem) {
-      setError(problem);
-    }
-  };
+function SkeletonPanel({ slug, skeleton, canEdit }: { slug: string; skeleton: Skeleton; canEdit: boolean }) {
+  const empty = skeleton.tables.length === 0 && skeleton.relations.length === 0;
 
   return (
     <Card className="flex flex-col gap-3">
-      <Title hint="粗、少、难改">骨架</Title>
-      <Note>概念、术语、关系。机器生成，您过目；它必须小到您一小时内能读完。</Note>
-      <ErrorNote error={error} />
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold tracking-tight">骨架</h2>
+        <span className="text-xs text-muted-foreground">表与表的关系 · 不写字段</span>
+        {canEdit ? (
+          <Link className={buttonClass('quiet')} to={`/p/${slug}/skeleton`}>
+            编辑骨架
+          </Link>
+        ) : null}
+      </div>
 
-      <ul className="flex flex-col gap-1.5">
-        {parts.length === 0 ? <Empty>还没有骨架。血肉这时候只是散着的一堆。</Empty> : null}
-        {parts.map((part) => (
-          <li key={part.id} className="flex items-start gap-2 rounded-md border border-border px-2.5 py-2 text-xs leading-relaxed">
-            <span className="mt-0.5 shrink-0 rounded bg-muted/60 px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
-              {PART_LABEL[part.kind]}
-            </span>
-            <span className="flex-1">
-              {part.name}
-              {part.note ? <span className="block text-[0.7rem] text-muted-foreground">{part.note}</span> : null}
-            </span>
-            {editable ? (
-              <button
-                type="button"
-                onClick={() => drop(part.id)}
-                className="shrink-0 text-muted-foreground transition hover:text-destructive"
-                aria-label="拿掉这块骨架"
-              >
-                ×
-              </button>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+      {empty ? <Empty>还没有骨架。它现在只是几句话。</Empty> : null}
 
-      {editable ? (
-        <div className="flex flex-col gap-2 border-t border-border pt-3">
-          <Field label="哪一类">
-            <Select value={kind} onChange={(event) => setKind(event.target.value as PartKind)}>
-              {PART_KINDS.map((value) => (
-                <option key={value} value={value}>
-                  {PART_LABEL[value]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="它叫什么">
-            <TextInput value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：钉" />
-          </Field>
-          <Button onClick={submit} disabled={!name.trim()}>
-            加一块
-          </Button>
+      {skeleton.tables.length > 0 ? (
+        <ul className="flex flex-col gap-1.5">
+          {skeleton.tables.map((table, index) => (
+            <li key={index} className="flex items-baseline gap-2 rounded-md border border-border px-2.5 py-2 text-xs leading-relaxed">
+              <span className="shrink-0 tabular-nums text-muted-foreground/60">{String(index + 1).padStart(2, '0')}</span>
+              <span className="font-medium">{table.name}</span>
+              {table.note ? <span className="text-muted-foreground">{table.note}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {skeleton.relations.length > 0 ? (
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+          <p className="text-xs text-muted-foreground">关系</p>
+          <ul className="flex flex-col gap-1.5">
+            {skeleton.relations.map((relation, index) => (
+              <li key={index} className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-medium">{relation.from}</span>
+                <Badge tone="strong">{CARDINALITY_LABEL[relation.cardinality]}</Badge>
+                <span className="font-medium">{relation.to}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </Card>

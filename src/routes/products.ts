@@ -3,32 +3,30 @@ import type { Env } from '../env';
 import { fail } from '../http';
 import { principalOf, requirePrincipal, type Principal } from '../auth';
 import {
-  addPart,
   addTile,
   createProduct,
-  deletePart,
   deleteProduct,
   deleteTile,
-  listParts,
   listProducts,
   listTiles,
   loadOwnProduct,
   loadProduct,
+  readSkeleton,
   readSoul,
   setTileState,
   updateProduct,
+  writeSkeleton,
   writeSoul,
-  type PartKind,
   type TileState,
 } from '../store';
+import { normalizeSkeleton } from '../skeleton';
 import { normalizeSoul } from '../soul';
-import { partView, productView, tileView } from '../views';
+import { productView, tileView } from '../views';
 
 type Bindings = { Bindings: Env; Variables: { principal: Principal | null } };
 
 export const productRoutes = new Hono<Bindings>();
 
-const PART_KINDS: PartKind[] = ['table', 'object', 'stack'];
 const TILE_STATES: TileState[] = ['growing', 'pending', 'shed'];
 
 function text(value: unknown, field: string, max: number): string {
@@ -63,12 +61,12 @@ productRoutes.post('/', async (c) => {
 productRoutes.get('/:slug', async (c) => {
   const principal = await principalOf(c.req.raw, c.env);
   const product = await loadProduct(c.env, c.req.param('slug'), principal);
-  const [parts, tiles] = await Promise.all([listParts(c.env, product.id), listTiles(c.env, product.id)]);
+  const tiles = await listTiles(c.env, product.id);
   return c.json({
     product: productView(product),
     canEdit: principal !== null && principal.userId === product.owner_user_id,
     soul: readSoul(product),
-    parts: parts.map(partView),
+    skeleton: readSkeleton(product),
     tiles: tiles.map(tileView),
   });
 });
@@ -101,23 +99,12 @@ productRoutes.put('/:slug/soul', async (c) => {
   return c.json({ soul });
 });
 
-productRoutes.post('/:slug/parts', async (c) => {
+productRoutes.put('/:slug/skeleton', async (c) => {
   const principal = await requirePrincipal(c.req.raw, c.env);
   const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
-  const body = await c.req.json().catch(() => ({}));
-  const part = await addPart(c.env, product, {
-    kind: oneOf(body.kind, PART_KINDS, '骨架类型', 'table'),
-    name: text(body.name, '骨架名', 60),
-    note: typeof body.note === 'string' ? body.note.trim().slice(0, 240) : '',
-  });
-  return c.json({ part: partView(part) }, 201);
-});
-
-productRoutes.delete('/:slug/parts/:partId', async (c) => {
-  const principal = await requirePrincipal(c.req.raw, c.env);
-  const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
-  await deletePart(c.env, product, c.req.param('partId'));
-  return c.body(null, 204);
+  const skeleton = normalizeSkeleton(await c.req.json().catch(() => null));
+  await writeSkeleton(c.env, product, skeleton);
+  return c.json({ skeleton });
 });
 
 productRoutes.post('/:slug/tiles', async (c) => {
