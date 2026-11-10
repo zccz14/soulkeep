@@ -28,7 +28,7 @@ type Bindings = { Bindings: Env; Variables: { principal: Principal | null } };
 
 export const productRoutes = new Hono<Bindings>();
 
-const PART_KINDS: PartKind[] = ['concept', 'table', 'object', 'stack'];
+const PART_KINDS: PartKind[] = ['table', 'object', 'stack'];
 const TILE_STATES: TileState[] = ['growing', 'pending', 'shed'];
 
 function text(value: unknown, field: string, max: number): string {
@@ -106,7 +106,7 @@ productRoutes.post('/:slug/parts', async (c) => {
   const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
   const body = await c.req.json().catch(() => ({}));
   const part = await addPart(c.env, product, {
-    kind: oneOf(body.kind, PART_KINDS, '骨架类型', 'concept'),
+    kind: oneOf(body.kind, PART_KINDS, '骨架类型', 'table'),
     name: text(body.name, '骨架名', 60),
     note: typeof body.note === 'string' ? body.note.trim().slice(0, 240) : '',
   });

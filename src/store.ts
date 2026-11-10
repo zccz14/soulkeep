@@ -4,7 +4,7 @@ import { newId, nowSeconds, toSlug } from './ids';
 import { EMPTY_SOUL, parseSoul, type Soul } from './soul';
 import type { Principal } from './auth';
 
-export type PartKind = 'concept' | 'table' | 'object' | 'stack';
+export type PartKind = 'table' | 'object' | 'stack';
 export type TileState = 'growing' | 'pending' | 'shed';
 
 export interface ProductRow {
