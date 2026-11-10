@@ -12,7 +12,6 @@ import {
   setTileState,
   updatePin,
   type PartKind,
-  type PinKind,
   type PinView,
   type ProductDetail,
   type SdkLike,
@@ -20,11 +19,9 @@ import {
 } from '../api';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Kicker, Note, Select, TextInput, Title } from '../ui';
 
-const PIN_KINDS: PinKind[] = ['why', 'being', 'never', 'who'];
 const PART_KINDS: PartKind[] = ['concept', 'table', 'object', 'stack'];
 const PART_LABEL: Record<PartKind, string> = { concept: '概念', table: '表', object: '对外对象', stack: '技术栈' };
 const TILE_LABEL: Record<TileState, string> = { growing: '长着', pending: '待补', shed: '已脱落' };
-const PIN_LABEL: Record<PinKind, string> = { why: '为什么', being: '要成为', never: '绝不', who: '给谁' };
 const NEXT_STATE: Record<TileState, TileState> = { growing: 'pending', pending: 'shed', shed: 'growing' };
 
 export function ProductPage() {
@@ -97,7 +94,6 @@ function SoulPanel({
   sdk: SdkLike | null;
   onChanged: () => void;
 }) {
-  const [kind, setKind] = useState<PinKind>('being');
   const [statement, setStatement] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -109,7 +105,7 @@ function SoulPanel({
     if (!sdk) return;
     setError(null);
     try {
-      await addPin(sdk, slug, { kind, statement });
+      await addPin(sdk, slug, { statement });
       setStatement('');
       onChanged();
     } catch (problem) {
@@ -210,9 +206,6 @@ function SoulPanel({
                 ⋮
               </span>
             ) : null}
-            <span className="mt-0.5 shrink-0 rounded bg-muted/60 px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
-              {PIN_LABEL[pin.kind]}
-            </span>
             {editingId === pin.id ? (
               <input
                 autoFocus
@@ -249,15 +242,6 @@ function SoulPanel({
 
       {editable ? (
         <div className="flex flex-col gap-2 border-t border-border pt-3">
-          <Field label="这句是什么">
-            <Select value={kind} onChange={(event) => setKind(event.target.value as PinKind)}>
-              {PIN_KINDS.map((value) => (
-                <option key={value} value={value}>
-                  {PIN_LABEL[value]}
-                </option>
-              ))}
-            </Select>
-          </Field>
           <Field label="钉一句话上去">
             <TextInput
               value={statement}

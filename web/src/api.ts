@@ -46,7 +46,6 @@ export async function api<T>(sdk: SdkLike | null, path: string, init?: RequestIn
   return parsed as T;
 }
 
-export type PinKind = 'why' | 'being' | 'never' | 'who';
 export type PartKind = 'concept' | 'table' | 'object' | 'stack';
 export type TileState = 'growing' | 'pending' | 'shed';
 
@@ -61,7 +60,6 @@ export interface ProductView {
 
 export interface PinView {
   id: string;
-  kind: PinKind;
   statement: string;
 }
 
@@ -115,7 +113,7 @@ export function updatePin(
   sdk: SdkLike,
   slug: string,
   id: string,
-  patch: { statement?: string; kind?: PinKind; slot?: number },
+  patch: { statement?: string; slot?: number },
 ) {
   return api<{ pin: PinView }>(sdk, `/api/v1/products/${slug}/pins/${id}`, {
     method: 'PATCH',

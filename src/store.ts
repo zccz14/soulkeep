@@ -3,7 +3,6 @@ import { fail } from './http';
 import { newId, nowSeconds, toSlug } from './ids';
 import type { Principal } from './auth';
 
-export type PinKind = 'why' | 'being' | 'never' | 'who';
 export type PartKind = 'concept' | 'table' | 'object' | 'stack';
 export type TileState = 'growing' | 'pending' | 'shed';
 
@@ -22,7 +21,6 @@ export interface ProductRow {
 export interface PinRow {
   id: string;
   product_id: string;
-  kind: PinKind;
   statement: string;
   slot: number;
   created_at: number;
@@ -147,7 +145,7 @@ export async function listPins(env: Env, productId: string): Promise<PinRow[]> {
 export async function addPin(
   env: Env,
   product: ProductRow,
-  input: { kind: PinKind; statement: string },
+  input: { statement: string },
 ): Promise<PinRow> {
   const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM soul_pins WHERE product_id = ?`)
     .bind(product.id)
@@ -155,15 +153,14 @@ export async function addPin(
   const row: PinRow = {
     id: newId('pin'),
     product_id: product.id,
-    kind: input.kind,
     statement: input.statement.trim(),
     slot: count?.n ?? 0,
     created_at: nowSeconds(),
   };
   await env.DB.prepare(
-    `INSERT INTO soul_pins (id, product_id, kind, statement, slot, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO soul_pins (id, product_id, statement, slot, created_at) VALUES (?, ?, ?, ?, ?)`,
   )
-    .bind(row.id, row.product_id, row.kind, row.statement, row.slot, row.created_at)
+    .bind(row.id, row.product_id, row.statement, row.slot, row.created_at)
     .run();
   await touch(env, product.id);
   return row;
@@ -174,19 +171,15 @@ export async function updatePin(
   env: Env,
   product: ProductRow,
   pinId: string,
-  input: { statement?: string; kind?: PinKind },
+  input: { statement?: string },
 ): Promise<PinRow> {
   const row = await env.DB.prepare(`SELECT * FROM soul_pins WHERE id = ? AND product_id = ?`)
     .bind(pinId, product.id)
     .first<PinRow>();
   if (!row) return fail(404, 'not_found', '没有这颗钉');
-  const next: PinRow = {
-    ...row,
-    statement: input.statement ?? row.statement,
-    kind: input.kind ?? row.kind,
-  };
-  await env.DB.prepare(`UPDATE soul_pins SET kind = ?, statement = ? WHERE id = ?`)
-    .bind(next.kind, next.statement, next.id)
+  const next: PinRow = { ...row, statement: input.statement ?? row.statement };
+  await env.DB.prepare(`UPDATE soul_pins SET statement = ? WHERE id = ?`)
+    .bind(next.statement, next.id)
     .run();
   await touch(env, product.id);
   return next;
