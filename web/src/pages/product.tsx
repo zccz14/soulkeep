@@ -142,11 +142,18 @@ function SoulPanel({
     }
   };
 
-  const move = async (position: number, delta: number) => {
-    if (!sdk) return;
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+
+  /** 松手就落到悬停的那一行，服务端按目标序号整串重排。 */
+  const dropOn = async (target: number) => {
+    const from = pins.findIndex((pin) => pin.id === draggingId);
+    setDraggingId(null);
+    setOverIndex(null);
+    if (from === -1 || from === target || !sdk) return;
     setError(null);
     try {
-      await updatePin(sdk, slug, pins[position].id, { slot: position + delta });
+      await updatePin(sdk, slug, pins[from].id, { slot: target });
       onChanged();
     } catch (problem) {
       setError(problem);
@@ -173,7 +180,36 @@ function SoulPanel({
       <ul className="flex flex-col gap-1.5">
         {pins.length === 0 ? <Empty>还没有钉子。轮廓现在还不存在。</Empty> : null}
         {pins.map((pin, position) => (
-          <li key={pin.id} className="flex items-start gap-2 rounded-md border border-border px-2.5 py-2 text-xs leading-relaxed">
+          <li
+            key={pin.id}
+            draggable={editable && editingId !== pin.id}
+            onDragStart={() => setDraggingId(pin.id)}
+            onDragEnd={() => {
+              setDraggingId(null);
+              setOverIndex(null);
+            }}
+            onDragOver={(event) => {
+              if (!draggingId || draggingId === pin.id) return;
+              event.preventDefault();
+              setOverIndex(position);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              void dropOn(position);
+            }}
+            className={`flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs leading-relaxed transition ${
+              draggingId === pin.id
+                ? 'border-border opacity-40'
+                : overIndex === position && draggingId
+                  ? 'border-foreground/50 bg-foreground/[0.05]'
+                  : 'border-border'
+            } ${editable && editingId !== pin.id ? 'cursor-grab active:cursor-grabbing' : ''}`}
+          >
+            {editable ? (
+              <span aria-hidden className="mt-0.5 shrink-0 select-none px-0.5 text-sm leading-4 text-muted-foreground/50">
+                ⋮
+              </span>
+            ) : null}
             <span className="mt-0.5 shrink-0 rounded bg-muted/60 px-1.5 py-0.5 text-[0.65rem] text-muted-foreground">
               {PIN_LABEL[pin.kind]}
             </span>
@@ -198,34 +234,14 @@ function SoulPanel({
               </span>
             )}
             {editable && editingId !== pin.id ? (
-              <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
-                <button
-                  type="button"
-                  disabled={position === 0}
-                  onClick={() => move(position, -1)}
-                  className="transition hover:text-foreground disabled:opacity-25"
-                  aria-label="往上挪一颗"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  disabled={position === pins.length - 1}
-                  onClick={() => move(position, 1)}
-                  className="transition hover:text-foreground disabled:opacity-25"
-                  aria-label="往下挪一颗"
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  onClick={() => drop(pin.id)}
-                  className="transition hover:text-destructive"
-                  aria-label="拔掉这颗钉"
-                >
-                  ×
-                </button>
-              </span>
+              <button
+                type="button"
+                onClick={() => drop(pin.id)}
+                className="shrink-0 text-muted-foreground transition hover:text-destructive"
+                aria-label="拔掉这颗钉"
+              >
+                ×
+              </button>
             ) : null}
           </li>
         ))}
