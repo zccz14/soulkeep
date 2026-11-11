@@ -49,4 +49,4 @@ pnpm build
 
 ## 四条
 
-Structure · Responsiveness · Homeostasis · Metabolism。见站内「四条」一页。
+Structure · Responsiveness · Homeostasis · Metabolism。软件不是造物，是活物：它不追求一次写对，它追求活着并持续修复。
