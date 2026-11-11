@@ -13,8 +13,8 @@ import {
   type SdkLike,
   type TileState,
 } from '../api';
+import { SkeletonGraph } from '../components/skeleton-graph';
 import { hostOf, repoHref, repoLabel } from '../links';
-import { CARDINALITY_LABEL } from '../skeleton';
 import { Badge, Button, buttonClass, Card, Empty, ErrorNote, Field, Kicker, Note, TextInput, Title } from '../ui';
 
 const TILE_LABEL: Record<TileState, string> = { growing: '长着', pending: '待补', shed: '已脱落' };
@@ -270,20 +270,7 @@ function SkeletonPanel({ slug, skeleton, canEdit }: { slug: string; skeleton: Sk
         </ul>
       ) : null}
 
-      {skeleton.relations.length > 0 ? (
-        <div className="flex flex-col gap-1.5 border-t border-border pt-3">
-          <p className="text-xs text-muted-foreground">关系</p>
-          <ul className="flex flex-col gap-1.5">
-            {skeleton.relations.map((relation, index) => (
-              <li key={index} className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="font-medium">{relation.from}</span>
-                <Badge tone="strong">{CARDINALITY_LABEL[relation.cardinality]}</Badge>
-                <span className="font-medium">{relation.to}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <SkeletonGraph skeleton={skeleton} />
     </Card>
   );
 }
