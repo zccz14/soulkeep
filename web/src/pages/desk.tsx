@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthMini } from 'auth-mini-react-components';
 import { createProduct, listProducts, type ProductView, type SdkLike } from '../api';
+import { hostOf } from '../links';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Kicker, Note, TextInput, Title } from '../ui';
 
 function greeting(hour: number): string {
@@ -137,6 +138,7 @@ function ProductCard({ product }: { product: ProductView }) {
           {product.isSample ? <Badge>示范</Badge> : product.visibility === 'public' ? <Badge>公开</Badge> : <Badge>私有</Badge>}
         </div>
         <p className="text-sm leading-relaxed text-muted-foreground">{product.oneLiner}</p>
+        {product.url ? <p className="text-xs text-muted-foreground/70">{hostOf(product.url)}</p> : null}
         <span className="mt-auto pt-2 text-xs text-muted-foreground opacity-0 transition group-hover:opacity-100">
           看它的三层 →
         </span>

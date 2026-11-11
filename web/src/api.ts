@@ -54,6 +54,8 @@ export interface ProductView {
   oneLiner: string;
   visibility: 'private' | 'public';
   isSample: boolean;
+  url: string;
+  repo: string;
   updatedAt: number;
 }
 
@@ -110,6 +112,17 @@ export function listProducts(sdk: SdkLike | null) {
 
 export function getProduct(sdk: SdkLike | null, slug: string) {
   return api<ProductDetail>(sdk, `/api/v1/products/${encodeURIComponent(slug)}`);
+}
+
+export function updateProduct(
+  sdk: SdkLike,
+  slug: string,
+  patch: { name?: string; oneLiner?: string; url?: string; repo?: string; visibility?: 'private' | 'public' },
+) {
+  return api<{ product: ProductView }>(sdk, `/api/v1/products/${slug}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
 }
 
 export function createProduct(sdk: SdkLike, input: { name: string; oneLiner: string }) {

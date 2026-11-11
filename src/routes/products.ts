@@ -19,6 +19,7 @@ import {
   writeSoul,
   type TileState,
 } from '../store';
+import { normalizeRepo, normalizeUrl } from '../links';
 import { normalizeSkeleton } from '../skeleton';
 import { normalizeSoul } from '../soul';
 import { productView, tileView } from '../views';
@@ -80,6 +81,8 @@ productRoutes.patch('/:slug', async (c) => {
     oneLiner: body.oneLiner === undefined ? undefined : text(body.oneLiner, '一句话身份', 200),
     visibility:
       body.visibility === undefined ? undefined : oneOf(body.visibility, ['private', 'public'] as const, '可见性', 'private'),
+    url: body.url === undefined ? undefined : normalizeUrl(body.url),
+    repo: body.repo === undefined ? undefined : normalizeRepo(body.repo),
   });
   return c.json({ product: productView(next) });
 });
