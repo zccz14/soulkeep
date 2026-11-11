@@ -1,4 +1,4 @@
-import { GlobeIcon, InfoIcon, LayersIcon } from 'lucide-react';
+import { GlobeIcon, LayersIcon } from 'lucide-react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@zccz14/ux';
 import { useAuthMini } from 'auth-mini-react-components';
@@ -8,7 +8,6 @@ import { PlazaPage } from './pages/plaza';
 import { ProductPage } from './pages/product';
 import { SkeletonPage } from './pages/skeleton';
 import { SoulPage } from './pages/soul';
-import { AboutPage } from './pages/about';
 
 export function App() {
   const { isReady } = useAuthMini();
@@ -31,7 +30,6 @@ export function App() {
           items: [
             { to: '/', label: '创始人桌面', icon: <LayersIcon /> },
             { to: '/plaza', label: '产品广场', icon: <GlobeIcon /> },
-            { to: '/about', label: '四条', icon: <InfoIcon /> },
           ],
         },
       ]}
@@ -42,7 +40,6 @@ export function App() {
         <Route path="/p/:slug" element={<ProductPage />} />
         <Route path="/p/:slug/soul" element={<SoulPage />} />
         <Route path="/p/:slug/skeleton" element={<SkeletonPage />} />
-        <Route path="/about" element={<AboutPage />} />
         <Route path="*" element={<Navigate replace to="/" />} />
       </Routes>
     </AppLayout>

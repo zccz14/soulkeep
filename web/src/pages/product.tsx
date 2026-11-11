@@ -27,6 +27,8 @@ export function ProductPage() {
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+  const [oneLiner, setOneLiner] = useState('');
   const [url, setUrl] = useState('');
   const [repo, setRepo] = useState('');
   const [visibility, setVisibility] = useState<'private' | 'public'>('private');
@@ -49,6 +51,8 @@ export function ProductPage() {
   const editable = detail.canEdit;
 
   const openEditor = () => {
+    setName(product.name);
+    setOneLiner(product.oneLiner);
     setUrl(product.url);
     setRepo(product.repo);
     setVisibility(product.visibility);
@@ -61,7 +65,7 @@ export function ProductPage() {
     setSaving(true);
     setFormError(null);
     try {
-      await updateProduct(typed, slug, { url, repo, visibility });
+      await updateProduct(typed, slug, { name, oneLiner, url, repo, visibility });
       setEditing(false);
       load();
     } catch (problem) {
@@ -127,7 +131,19 @@ export function ProductPage() {
 
       {editing ? (
         <Card className="flex flex-col gap-3">
-          <Title hint="地址都可以空着">产品资料</Title>
+          <Title hint="地址可以空着，名字与一句话不能">产品资料</Title>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="它叫什么">
+              <TextInput value={name} onChange={(event) => setName(event.target.value)} placeholder="Cybion" />
+            </Field>
+            <Field label="一句话说清它是谁">
+              <TextInput
+                value={oneLiner}
+                onChange={(event) => setOneLiner(event.target.value)}
+                placeholder="Agent 应用的基础设施。"
+              />
+            </Field>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="公开访问地址">
               <TextInput
@@ -161,7 +177,7 @@ export function ProductPage() {
           </div>
           <ErrorNote error={formError} />
           <div className="flex gap-2">
-            <Button onClick={() => void saveLinks()} disabled={saving}>
+            <Button onClick={() => void saveLinks()} disabled={saving || !name.trim() || !oneLiner.trim()}>
               {saving ? '保存中…' : '保存'}
             </Button>
             <Button variant="quiet" onClick={() => setEditing(false)} disabled={saving}>
