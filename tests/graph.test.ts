@@ -36,6 +36,13 @@ describe('骨架关系图', () => {
     expect(same.edges[0].markerEnd).toBeUndefined();
   });
 
+  it('从属从底边进顶边，平级与同体两条底边相连，线不绕箱子', () => {
+    const owns = layoutSkeleton(skeleton(['a', 'b'], [['a', 'b', 'one-to-many']]));
+    const peer = layoutSkeleton(skeleton(['a', 'b'], [['a', 'b', 'many-to-many']]));
+    expect([owns.edges[0].sourceHandle, owns.edges[0].targetHandle]).toEqual(['out', 'in']);
+    expect([peer.edges[0].sourceHandle, peer.edges[0].targetHandle]).toEqual(['out', 'peer']);
+  });
+
   it('平级的两方站在同一层，谁也不在谁上面', () => {
     const diagram = layoutSkeleton(skeleton(['threads', 'manuals'], [['threads', 'manuals', 'many-to-many']]));
     expect(y(diagram, 'threads')).toBe(y(diagram, 'manuals'));
@@ -44,6 +51,18 @@ describe('骨架关系图', () => {
   it('同一个东西的两半也站在同一层', () => {
     const diagram = layoutSkeleton(skeleton(['addresses', 'keys'], [['addresses', 'keys', 'one-to-one']]));
     expect(y(diagram, 'addresses')).toBe(y(diagram, 'keys'));
+  });
+
+  it('同一组里的人按关系挨着站，线不横穿别人的方框', () => {
+    const diagram = layoutSkeleton(
+      skeleton(
+        ['threads', 'manuals', 'machines'],
+        [['threads', 'manuals', 'many-to-many'], ['machines', 'threads', 'one-to-one']],
+      ),
+    );
+    const x = (name: string) => diagram.nodes.find((node) => node.id === name)!.position.x;
+    expect(x('threads')).toBeGreaterThan(x('manuals'));
+    expect(x('threads')).toBeLessThan(x('machines'));
   });
 
   it('挂着别人的实体填深色，只挂在别人身上的填浅色', () => {

@@ -3,6 +3,9 @@ import { ReactFlow, type Edge, type Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { Skeleton } from '../api';
 import { layoutSkeleton } from '../graph';
+import { SkeletonNode } from './skeleton-node';
+
+const nodeTypes = { box: SkeletonNode };
 
 const MAX_HEIGHT = 620;
 
@@ -59,6 +62,7 @@ export function SkeletonGraph({ skeleton }: { skeleton: Skeleton }) {
           fitView
           fitViewOptions={{ padding: 0.04, maxZoom: 1 }}
           minZoom={0.25}
+          nodeTypes={nodeTypes}
           nodes={nodes}
           nodesConnectable={false}
           nodesDraggable={false}

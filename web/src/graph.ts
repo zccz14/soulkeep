@@ -95,11 +95,33 @@ export function layoutSkeleton(skeleton: Skeleton): Diagram {
     group.set(rootOf(relation.to), rootOf(relation.from));
   }
 
+  // 平级的人要挨着站：沿组内的关系走一遍，相邻的连成一条，省得线横穿别人的方框。
+  const pals = new Map<string, string[]>(linked.map((name) => [name, []]));
+  for (const relation of known) {
+    if (relationKind(relation.cardinality) === 'owns') continue;
+    pals.get(relation.from)?.push(relation.to);
+    pals.get(relation.to)?.push(relation.from);
+  }
+  const inLine = (group: string[]): string[] => {
+    const seen = new Set<string>();
+    const line: string[] = [];
+    const walk = (name: string) => {
+      if (seen.has(name)) return;
+      seen.add(name);
+      line.push(name);
+      for (const next of pals.get(name) ?? []) walk(next);
+    };
+    // 从最边上那个开始走，整串才会顺：manuals – threads – machines。
+    for (const name of [...group].sort((a, b) => (pals.get(a)?.length ?? 0) - (pals.get(b)?.length ?? 0))) walk(name);
+    return line;
+  };
+
   const members = new Map<string, string[]>();
   for (const name of linked) {
     const root = rootOf(name);
     members.set(root, [...(members.get(root) ?? []), name]);
   }
+  for (const [root, group] of members) members.set(root, inLine(group));
 
   // multigraph：同一对实体之间可以有几条不同的关系，各画各的线。
   const graph = new dagre.graphlib.Graph({ multigraph: true });
@@ -133,6 +155,7 @@ export function layoutSkeleton(skeleton: Skeleton): Diagram {
       const height = heightOf(name);
       nodes.push({
         id: name,
+        type: 'box',
         position: { x: left, y: placed.y - height / 2 },
         data: { label: name },
         width,
@@ -157,6 +180,8 @@ export function layoutSkeleton(skeleton: Skeleton): Diagram {
       source: relation.from,
       target: relation.to,
       type: 'smoothstep',
+      sourceHandle: 'out',
+      targetHandle: kind === 'owns' ? 'in' : 'peer',
       markerEnd:
         kind === 'owns'
           ? { type: MarkerType.ArrowClosed, width: 13, height: 13, color: 'var(--muted-foreground)' }
