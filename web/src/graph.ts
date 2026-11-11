@@ -31,8 +31,8 @@ export interface GraphLayout {
 export const DIAMOND = { width: 46, height: 32 };
 
 const NODE_HEIGHT = 28;
-const ROW_GAP = 116;
-const COLUMN_GAP = 40;
+const ROW_GAP = 134;
+const COLUMN_GAP = 44;
 /** 一层太宽就折行：宁可多一层，也别把字挤成蚂蚁。 */
 const MAX_ROW_WIDTH = 820;
 const PADDING = 30;

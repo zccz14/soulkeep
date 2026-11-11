@@ -135,14 +135,16 @@ function leg(from: Box, diamond: Box, text: string, toward: { x: number; y: numb
   const end = boundaryPoint(diamond, from.x, from.y);
   const across = { x: -(end.y - start.y), y: end.x - start.x };
   const length = Math.hypot(across.x, across.y) || 1;
-  const offset = push === 0 ? 10 : push * 12;
+  const offset = push === 0 ? 11 : push * 12;
+  // 数字靠近实体那一头：几条线从一个实体发出去时，挤在中间会糊成一团。
+  const along = push === 0 ? 0.38 : 0.5;
   return {
     start,
     end,
     text,
     label: {
-      x: (start.x + end.x) / 2 + (across.x / length) * offset,
-      y: (start.y + end.y) / 2 + (across.y / length) * offset,
+      x: start.x + (end.x - start.x) * along + (across.x / length) * offset,
+      y: start.y + (end.y - start.y) * along + (across.y / length) * offset,
     },
   };
 }
