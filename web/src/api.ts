@@ -106,8 +106,13 @@ export interface ProductDetail {
   tiles: TileView[];
 }
 
+/** 列表多一个 owned：公开之后，桌面只把您自己的算成您养着的。 */
+export interface ProductListItem extends ProductView {
+  owned: boolean;
+}
+
 export function listProducts(sdk: SdkLike | null) {
-  return api<{ products: ProductView[] }>(sdk, '/api/v1/products').then((data) => data.products);
+  return api<{ products: ProductListItem[] }>(sdk, '/api/v1/products').then((data) => data.products);
 }
 
 export function getProduct(sdk: SdkLike | null, slug: string) {
