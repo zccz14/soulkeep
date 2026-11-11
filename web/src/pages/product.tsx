@@ -29,6 +29,7 @@ export function ProductPage() {
   const [editing, setEditing] = useState(false);
   const [url, setUrl] = useState('');
   const [repo, setRepo] = useState('');
+  const [visibility, setVisibility] = useState<'private' | 'public'>('private');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<unknown>(null);
 
@@ -50,6 +51,7 @@ export function ProductPage() {
   const openEditor = () => {
     setUrl(product.url);
     setRepo(product.repo);
+    setVisibility(product.visibility);
     setFormError(null);
     setEditing(true);
   };
@@ -59,7 +61,7 @@ export function ProductPage() {
     setSaving(true);
     setFormError(null);
     try {
-      await updateProduct(typed, slug, { url, repo });
+      await updateProduct(typed, slug, { url, repo, visibility });
       setEditing(false);
       load();
     } catch (problem) {
@@ -125,7 +127,7 @@ export function ProductPage() {
 
       {editing ? (
         <Card className="flex flex-col gap-3">
-          <Title hint="都可以空着">产品地址</Title>
+          <Title hint="地址都可以空着">产品资料</Title>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="公开访问地址">
               <TextInput
@@ -141,6 +143,21 @@ export function ProductPage() {
                 placeholder="github.com/zccz14/cybion"
               />
             </Field>
+          </div>
+          <div className="flex flex-col gap-1 text-xs">
+            <span className="text-muted-foreground">谁能看</span>
+            <div className="flex gap-2">
+              {(['private', 'public'] as const).map((value) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant={visibility === value ? 'solid' : 'quiet'}
+                  onClick={() => setVisibility(value)}
+                >
+                  {value === 'public' ? '公开：挂到广场上' : '私有：只有我自己'}
+                </Button>
+              ))}
+            </div>
           </div>
           <ErrorNote error={formError} />
           <div className="flex gap-2">
