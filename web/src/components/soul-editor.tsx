@@ -3,6 +3,7 @@ import { DragDropProvider, PointerSensor } from '@dnd-kit/react';
 import { isSortable, useSortable } from '@dnd-kit/react/sortable';
 import { GripVertical } from 'lucide-react';
 import type { Concept, Soul } from '../api';
+import { isComposing } from '../keys';
 import { useRowIds } from '../row-ids';
 
 /** 服务端也按这套上限拒收；这里照抄一份，写到边上就写不下去了。 */
@@ -59,6 +60,7 @@ export function SoulEditor({ value, onChange }: { value: Soul; onChange: (next: 
   };
 
   const onStatementKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>, index: number) => {
+    if (isComposing(event)) return;
     if (event.key === 'Enter') {
       event.preventDefault();
       insertStatement(index);
@@ -292,7 +294,7 @@ function ConceptRow({
         value={concept.term}
         onChange={(term) => onEdit({ term })}
         onKeyDown={(event) => {
-          if (event.key !== 'Enter') return;
+          if (isComposing(event) || event.key !== 'Enter') return;
           event.preventDefault();
           onTermEnter();
         }}
@@ -305,7 +307,7 @@ function ConceptRow({
         value={concept.definition}
         onChange={(definition) => onEdit({ definition })}
         onKeyDown={(event) => {
-          if (event.key !== 'Enter') return;
+          if (isComposing(event) || event.key !== 'Enter') return;
           event.preventDefault();
           onDefinitionEnter();
         }}
