@@ -77,7 +77,7 @@ export function SkeletonGraph({ skeleton }: { skeleton: Skeleton }) {
       ) : null}
       {diagram.isolated.length > 0 ? (
         <p className="text-xs text-muted-foreground">
-          还没有接线（不在层级里）：<span className="font-mono">{diagram.isolated.join('、')}</span>
+          没有任何关系的实体：<span className="font-mono">{diagram.isolated.join('、')}</span>
         </p>
       ) : null}
       <figcaption className="text-xs leading-relaxed text-muted-foreground">
