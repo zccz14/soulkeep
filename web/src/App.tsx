@@ -2,7 +2,7 @@ import { GlobeIcon, LayersIcon } from 'lucide-react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@zccz14/ux';
 import { useAuthMini } from 'auth-mini-react-components';
-import { SoulkeepMark } from './mark';
+import { SoulKeepMark } from './mark';
 import { DeskPage } from './pages/desk';
 import { PlazaPage } from './pages/plaza';
 import { ProductPage } from './pages/product';
@@ -22,8 +22,8 @@ export function App() {
 
   return (
     <AppLayout
-      logo={<SoulkeepMark />}
-      title="Soulkeep"
+      logo={<SoulKeepMark />}
+      title="SoulKeep"
       nav={[
         {
           label: '工作台',

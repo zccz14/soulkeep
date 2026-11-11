@@ -56,7 +56,7 @@ export function DeskPage() {
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1">
-          <Kicker>Soulkeep</Kicker>
+          <Kicker>SoulKeep</Kicker>
           <h1 className="text-2xl font-semibold tracking-tight">
             创始人，{greeting(new Date().getHours())}。
           </h1>
