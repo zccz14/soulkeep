@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthMini } from 'auth-mini-react-components';
-import { createProduct, listProducts, type ProductView, type SdkLike } from '../api';
+import { createProduct, listProducts, type ProductListItem, type ProductView, type SdkLike } from '../api';
 import { hostOf } from '../links';
 import { Badge, Button, Card, Empty, ErrorNote, Field, Kicker, Note, TextInput, Title } from '../ui';
 
@@ -16,7 +16,7 @@ function greeting(hour: number): string {
 export function DeskPage() {
   const { sdk, isAuthenticated } = useAuthMini();
   const typed = sdk as unknown as SdkLike | null;
-  const [products, setProducts] = useState<ProductView[] | null>(null);
+  const [products, setProducts] = useState<ProductListItem[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -32,7 +32,7 @@ export function DeskPage() {
 
   useEffect(load, [load]);
 
-  const mine = products?.filter((product) => !product.isSample) ?? [];
+  const mine = products?.filter((product) => product.owned && !product.isSample) ?? [];
   const samples = products?.filter((product) => product.isSample) ?? [];
 
   const submit = async () => {
@@ -94,22 +94,25 @@ export function DeskPage() {
         </Card>
       ) : null}
 
-      <section className="flex flex-col gap-3">
-        <Title hint={mine.length ? `您养着 ${mine.length} 个` : undefined}>您养着的</Title>
-        {products === null ? <Note>正在把它们请出来…</Note> : null}
-        {products !== null && mine.length === 0 ? (
-          <Empty>
-            您还没有在这里种下产品。
-            <br />
-            钉下第一句灵魂，剩下的它会自己长。
-          </Empty>
-        ) : null}
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {mine.map((product) => (
-            <ProductCard key={product.slug} product={product} />
-          ))}
-        </div>
-      </section>
+      {products === null ? <Note>正在把它们请出来…</Note> : null}
+
+      {isAuthenticated ? (
+        <section className="flex flex-col gap-3">
+          <Title hint={mine.length ? `您养着 ${mine.length} 个` : undefined}>您养着的</Title>
+          {mine.length === 0 ? (
+            <Empty>
+              您还没有在这里种下产品。
+              <br />
+              钉下第一句灵魂，剩下的它会自己长。
+            </Empty>
+          ) : null}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {mine.map((product) => (
+              <ProductCard key={product.slug} product={product} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {samples.length ? (
         <section className="flex flex-col gap-3">

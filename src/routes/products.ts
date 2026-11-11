@@ -22,7 +22,7 @@ import {
 import { normalizeRepo, normalizeUrl } from '../links';
 import { normalizeSkeleton } from '../skeleton';
 import { normalizeSoul } from '../soul';
-import { productView, tileView } from '../views';
+import { productListItem, productView, tileView } from '../views';
 
 type Bindings = { Bindings: Env; Variables: { principal: Principal | null } };
 
@@ -47,7 +47,7 @@ function oneOf<T extends string>(value: unknown, allowed: T[], field: string, fa
 productRoutes.get('/', async (c) => {
   const principal = await principalOf(c.req.raw, c.env);
   const rows = await listProducts(c.env, principal);
-  return c.json({ products: rows.map(productView) });
+  return c.json({ products: rows.map((row) => productListItem(row, principal?.userId ?? null)) });
 });
 
 productRoutes.post('/', async (c) => {
