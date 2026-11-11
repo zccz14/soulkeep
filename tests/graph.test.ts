@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { labelOf, layoutSkeleton } from '../web/src/graph';
+import { endpointLabels, layoutSkeleton } from '../web/src/graph';
 
 function skeleton(tables: string[], relations: Array<[string, string, 'one-to-one' | 'one-to-many' | 'many-to-many']>) {
   return {
@@ -10,10 +10,10 @@ function skeleton(tables: string[], relations: Array<[string, string, 'one-to-on
 }
 
 describe('骨架关系图', () => {
-  it('三个数字都对得上', () => {
-    expect(labelOf('one-to-one')).toBe('1 : 1');
-    expect(labelOf('one-to-many')).toBe('1 : N');
-    expect(labelOf('many-to-many')).toBe('N : M');
+  it('两头的基数都对得上', () => {
+    expect(endpointLabels('one-to-one')).toEqual({ start: '1', end: '1' });
+    expect(endpointLabels('one-to-many')).toEqual({ start: '1', end: 'N' });
+    expect(endpointLabels('many-to-many')).toEqual({ start: 'N', end: 'M' });
   });
 
   it('每个实体一个方框，关系两头都在才画线', () => {
@@ -22,7 +22,7 @@ describe('骨架关系图', () => {
     );
     expect(diagram.nodes.map((node) => node.id)).toEqual(['projects', 'runs']);
     expect(diagram.edges).toHaveLength(1);
-    expect(diagram.edges[0].label).toBe('1 : N');
+    expect(diagram.edges[0].data).toMatchObject({ start: '1', end: 'N' });
   });
 
   it('指着不存在实体的关系会被跳过，不会画出一条断线', () => {

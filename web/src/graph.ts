@@ -1,5 +1,5 @@
 import dagre from '@dagrejs/dagre';
-import type { Edge, Node } from '@xyflow/react';
+import { MarkerType, type Edge, type Node } from '@xyflow/react';
 import type { Cardinality, Skeleton } from './api';
 
 /**
@@ -14,10 +14,21 @@ export interface Diagram {
 
 const NODE_HEIGHT = 34;
 
-export function labelOf(cardinality: Cardinality): string {
-  if (cardinality === 'one-to-one') return '1 : 1';
-  if (cardinality === 'one-to-many') return '1 : N';
-  return 'N : M';
+/**
+ * 一头一个标签：起点贴着自己的实体、终点贴着对方，
+ * 比在线的中间写「1 : N」更不容易认错线——线拐弯时尤其明显。
+ */
+export function endpointLabels(cardinality: Cardinality): { start: string; end: string } {
+  if (cardinality === 'one-to-one') return { start: '1', end: '1' };
+  if (cardinality === 'one-to-many') return { start: '1', end: 'N' };
+  return { start: 'N', end: 'M' };
+}
+
+export interface RelationData extends Record<string, unknown> {
+  start: string;
+  end: string;
+  /** 悬停聚焦时，跟它无关的线要退到后面去。 */
+  dim?: boolean;
 }
 
 export function nodeWidth(name: string): number {
@@ -45,18 +56,16 @@ export function layoutSkeleton(skeleton: Skeleton): Diagram {
     if (!graph.hasNode(relation.from) || !graph.hasNode(relation.to)) return;
     if (relation.from === relation.to) return;
     const id = `${relation.from}->${relation.to}#${index}`;
+    const labels = endpointLabels(relation.cardinality);
     graph.setEdge(relation.from, relation.to, {}, id);
     edges.push({
       id,
       source: relation.from,
       target: relation.to,
-      label: labelOf(relation.cardinality),
-      type: 'smoothstep',
+      type: 'relation',
+      data: { start: labels.start, end: labels.end } satisfies RelationData,
+      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: 'var(--muted-foreground)' },
       style: { stroke: 'var(--muted-foreground)', strokeWidth: 1.1, strokeOpacity: 0.55 },
-      labelStyle: { fill: 'var(--muted-foreground)', fontSize: 10.5, fontVariantNumeric: 'tabular-nums' },
-      labelBgStyle: { fill: 'var(--card)', fillOpacity: 1 },
-      labelBgPadding: [4, 2] as [number, number],
-      labelBgBorderRadius: 3,
     });
   });
 
