@@ -17,6 +17,8 @@ export interface ProductRow {
   is_sample: number;
   soul: string;
   skeleton: string;
+  url: string;
+  repo: string;
   created_at: number;
   updated_at: number;
 }
@@ -108,6 +110,8 @@ export async function createProduct(
     is_sample: 0,
     soul: JSON.stringify(EMPTY_SOUL),
     skeleton: JSON.stringify(EMPTY_SKELETON),
+    url: '',
+    repo: '',
     created_at: now,
     updated_at: now,
   };
@@ -125,17 +129,21 @@ export async function createProduct(
 export async function updateProduct(
   env: Env,
   product: ProductRow,
-  input: { name?: string; oneLiner?: string; visibility?: 'private' | 'public' },
+  input: { name?: string; oneLiner?: string; visibility?: 'private' | 'public'; url?: string; repo?: string },
 ): Promise<ProductRow> {
   const next: ProductRow = {
     ...product,
     name: input.name?.trim() || product.name,
     one_liner: input.oneLiner?.trim() || product.one_liner,
     visibility: input.visibility ?? product.visibility,
+    url: input.url ?? product.url,
+    repo: input.repo ?? product.repo,
     updated_at: nowSeconds(),
   };
-  await env.DB.prepare(`UPDATE products SET name = ?, one_liner = ?, visibility = ?, updated_at = ? WHERE id = ?`)
-    .bind(next.name, next.one_liner, next.visibility, next.updated_at, next.id)
+  await env.DB.prepare(
+    `UPDATE products SET name = ?, one_liner = ?, visibility = ?, url = ?, repo = ?, updated_at = ? WHERE id = ?`,
+  )
+    .bind(next.name, next.one_liner, next.visibility, next.url, next.repo, next.updated_at, next.id)
     .run();
   return next;
 }

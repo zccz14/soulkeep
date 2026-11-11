@@ -6,6 +6,8 @@ export interface ProductView {
   oneLiner: string;
   visibility: 'private' | 'public';
   isSample: boolean;
+  url: string;
+  repo: string;
   updatedAt: number;
 }
 
@@ -16,6 +18,8 @@ export function productView(row: ProductRow): ProductView {
     oneLiner: row.one_liner,
     visibility: row.visibility,
     isSample: row.is_sample === 1,
+    url: row.url,
+    repo: row.repo,
     updatedAt: row.updated_at,
   };
 }

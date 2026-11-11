@@ -6,12 +6,14 @@ import {
   getProduct,
   removeTile,
   setTileState,
+  updateProduct,
   type ProductDetail,
   type Skeleton,
   type Soul,
   type SdkLike,
   type TileState,
 } from '../api';
+import { hostOf, repoHref, repoLabel } from '../links';
 import { CARDINALITY_LABEL } from '../skeleton';
 import { Badge, Button, buttonClass, Card, Empty, ErrorNote, Field, Kicker, Note, TextInput, Title } from '../ui';
 
@@ -24,6 +26,11 @@ export function ProductPage() {
   const typed = sdk as unknown as SdkLike | null;
   const [detail, setDetail] = useState<ProductDetail | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const [editing, setEditing] = useState(false);
+  const [url, setUrl] = useState('');
+  const [repo, setRepo] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<unknown>(null);
 
   const load = useCallback(() => {
     setError(null);
@@ -40,6 +47,28 @@ export function ProductPage() {
   const { product, soul, skeleton, tiles } = detail;
   const editable = detail.canEdit;
 
+  const openEditor = () => {
+    setUrl(product.url);
+    setRepo(product.repo);
+    setFormError(null);
+    setEditing(true);
+  };
+
+  const saveLinks = async () => {
+    if (!typed) return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      await updateProduct(typed, slug, { url, repo });
+      setEditing(false);
+      load();
+    } catch (problem) {
+      setFormError(problem);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-2">
@@ -55,15 +84,75 @@ export function ProductPage() {
             <Kicker>{product.isSample ? '示范产品' : '产品'}</Kicker>
             <h1 className="text-2xl font-semibold tracking-tight">{product.name}</h1>
             <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">{product.oneLiner}</p>
+            {product.url || product.repo ? (
+              <div className="flex flex-wrap items-center gap-4 pt-0.5 text-xs">
+                {product.url ? (
+                  <a
+                    className="text-muted-foreground underline-offset-2 transition hover:text-foreground hover:underline"
+                    href={product.url}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {hostOf(product.url)} ↗
+                  </a>
+                ) : null}
+                {product.repo ? (
+                  <a
+                    className="text-muted-foreground underline-offset-2 transition hover:text-foreground hover:underline"
+                    href={repoHref(product.repo)}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    {repoLabel(product.repo)} ↗
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge tone="strong">{soul.statements.length} 句</Badge>
             <Badge>{skeleton.tables.length} 张表</Badge>
             <Badge>{skeleton.relations.length} 条关系</Badge>
             <Badge>{tiles.length} 片血肉</Badge>
+            {editable ? (
+              <Button variant="quiet" onClick={openEditor}>
+                编辑资料
+              </Button>
+            ) : null}
           </div>
         </div>
       </header>
+
+      {editing ? (
+        <Card className="flex flex-col gap-3">
+          <Title hint="都可以空着">产品地址</Title>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="公开访问地址">
+              <TextInput
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                placeholder="https://cybion.ntnl.io"
+              />
+            </Field>
+            <Field label="Git 地址">
+              <TextInput
+                value={repo}
+                onChange={(event) => setRepo(event.target.value)}
+                placeholder="github.com/zccz14/cybion"
+              />
+            </Field>
+          </div>
+          <ErrorNote error={formError} />
+          <div className="flex gap-2">
+            <Button onClick={() => void saveLinks()} disabled={saving}>
+              {saving ? '保存中…' : '保存'}
+            </Button>
+            <Button variant="quiet" onClick={() => setEditing(false)} disabled={saving}>
+              取消
+            </Button>
+          </div>
+        </Card>
+      ) : null}
 
       <div className="flex flex-col gap-4">
         <SoulPanel slug={product.slug} soul={soul} canEdit={editable} />
