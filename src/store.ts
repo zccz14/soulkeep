@@ -1,12 +1,10 @@
 import type { Env } from './env';
 import { fail } from './http';
 import { newId, nowSeconds, toSlug } from './ids';
-import type { FleshKind } from './flesh';
+import type { FleshKind, FleshState } from './flesh';
 import { EMPTY_SKELETON, parseSkeleton, type Skeleton } from './skeleton';
 import { EMPTY_SOUL, parseSoul, type Soul } from './soul';
 import type { Principal } from './auth';
-
-export type TileState = 'growing' | 'pending' | 'shed';
 
 export interface ProductRow {
   id: string;
@@ -24,15 +22,18 @@ export interface ProductRow {
   updated_at: number;
 }
 
-export interface TileRow {
+export interface FleshRow {
   id: string;
   product_id: string;
   name: string;
   kind: FleshKind;
   /** 表设计挂的那张表；其它种类是空串。 */
   anchor: string;
-  state: TileState;
-  note: string;
+  state: FleshState;
+  /** 这一片的正文：受 Schema 约束的 JSON，种类不同形状不同。 */
+  payload: string;
+  /** 机器最后一次读回它是什么时候。 */
+  read_at: number;
   slot: number;
   created_at: number;
 }
@@ -156,58 +157,86 @@ export async function deleteProduct(env: Env, product: ProductRow): Promise<void
   await env.DB.prepare(`DELETE FROM products WHERE id = ?`).bind(product.id).run();
 }
 
-export async function listTiles(env: Env, productId: string): Promise<TileRow[]> {
+export async function listFlesh(env: Env, productId: string): Promise<FleshRow[]> {
   const { results } = await env.DB.prepare(
-    `SELECT * FROM flesh_tiles WHERE product_id = ? ORDER BY slot ASC`,
+    `SELECT * FROM flesh WHERE product_id = ? ORDER BY slot ASC`,
   )
     .bind(productId)
-    .all<TileRow>();
+    .all<FleshRow>();
   return results ?? [];
 }
 
-export async function addTile(
+export async function loadFlesh(env: Env, product: ProductRow, id: string): Promise<FleshRow> {
+  const row = await env.DB.prepare(`SELECT * FROM flesh WHERE id = ? AND product_id = ?`)
+    .bind(id, product.id)
+    .first<FleshRow>();
+  if (!row) return fail(404, 'not_found', '没有这片血肉');
+  return row;
+}
+
+export async function addFlesh(
   env: Env,
   product: ProductRow,
-  input: { name: string; note: string; kind: FleshKind; anchor: string },
-): Promise<TileRow> {
-  const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM flesh_tiles WHERE product_id = ?`)
+  input: { name: string; kind: FleshKind; anchor: string; state: FleshState; payload: string },
+): Promise<FleshRow> {
+  const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM flesh WHERE product_id = ?`)
     .bind(product.id)
     .first<{ n: number }>();
-  const row: TileRow = {
-    id: newId('tile'),
+  const row: FleshRow = {
+    id: newId('flesh'),
     product_id: product.id,
     name: input.name.trim(),
     kind: input.kind,
     anchor: input.anchor,
-    state: 'growing',
-    note: input.note.trim(),
+    state: input.state,
+    payload: input.payload,
+    read_at: nowSeconds(),
     slot: count?.n ?? 0,
     created_at: nowSeconds(),
   };
   await env.DB.prepare(
-    `INSERT INTO flesh_tiles (id, product_id, name, kind, anchor, state, note, slot, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO flesh (id, product_id, name, kind, anchor, state, payload, read_at, slot, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(row.id, row.product_id, row.name, row.kind, row.anchor, row.state, row.note, row.slot, row.created_at)
+    .bind(
+      row.id,
+      row.product_id,
+      row.name,
+      row.kind,
+      row.anchor,
+      row.state,
+      row.payload,
+      row.read_at,
+      row.slot,
+      row.created_at,
+    )
     .run();
   await touch(env, product.id);
   return row;
 }
 
-export async function setTileState(
+/** 机器读回一片血肉：正文整份换掉，读回的时间跟着走。 */
+export async function updateFlesh(
   env: Env,
   product: ProductRow,
-  tileId: string,
-  state: TileState,
-): Promise<void> {
-  await env.DB.prepare(`UPDATE flesh_tiles SET state = ? WHERE id = ? AND product_id = ?`)
-    .bind(state, tileId, product.id)
+  row: FleshRow,
+  input: { state?: FleshState; payload?: string },
+): Promise<FleshRow> {
+  const next: FleshRow = {
+    ...row,
+    state: input.state ?? row.state,
+    payload: input.payload ?? row.payload,
+    read_at: input.payload === undefined ? row.read_at : nowSeconds(),
+  };
+  await env.DB.prepare(`UPDATE flesh SET state = ?, payload = ?, read_at = ? WHERE id = ? AND product_id = ?`)
+    .bind(next.state, next.payload, next.read_at, row.id, product.id)
     .run();
   await touch(env, product.id);
+  return next;
 }
 
-export async function deleteTile(env: Env, product: ProductRow, tileId: string): Promise<void> {
-  await env.DB.prepare(`DELETE FROM flesh_tiles WHERE id = ? AND product_id = ?`).bind(tileId, product.id).run();
+export async function deleteFlesh(env: Env, product: ProductRow, id: string): Promise<void> {
+  await env.DB.prepare(`DELETE FROM flesh WHERE id = ? AND product_id = ?`).bind(id, product.id).run();
   await touch(env, product.id);
 }
 

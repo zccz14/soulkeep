@@ -1,4 +1,5 @@
-import type { ProductRow, TileRow } from './store';
+import { readFleshPayload } from './flesh';
+import type { FleshRow, ProductRow } from './store';
 
 export interface ProductView {
   slug: string;
@@ -33,7 +34,15 @@ export function productListItem(row: ProductRow, userId: string | null): Product
   return { ...productView(row), owned: userId !== null && userId === row.owner_user_id };
 }
 
-/** 一片血肉带着它的种类：表设计还带着挂在骨架哪张表上。 */
-export function tileView(row: TileRow) {
-  return { id: row.id, name: row.name, kind: row.kind, anchor: row.anchor, state: row.state, note: row.note };
+/** 一片血肉带着它的种类与正文：表设计还带着挂在骨架哪张表上。 */
+export function fleshView(row: FleshRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    kind: row.kind,
+    anchor: row.anchor,
+    state: row.state,
+    payload: readFleshPayload(row.kind, row.payload),
+    readAt: row.read_at,
+  };
 }
