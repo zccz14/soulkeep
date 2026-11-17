@@ -20,6 +20,7 @@ import {
   type TileState,
 } from '../store';
 import { normalizeRepo, normalizeUrl } from '../links';
+import { normalizeFleshAnchor, normalizeFleshKind } from '../flesh';
 import { normalizeSkeleton } from '../skeleton';
 import { normalizeSoul } from '../soul';
 import { productListItem, productView, tileView } from '../views';
@@ -114,8 +115,19 @@ productRoutes.post('/:slug/tiles', async (c) => {
   const principal = await requirePrincipal(c.req.raw, c.env);
   const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
   const body = await c.req.json().catch(() => ({}));
+  const kind = normalizeFleshKind(body.kind);
+  const anchor = normalizeFleshAnchor(kind, body.anchor, readSkeleton(product));
+  if (kind === 'table') {
+    const grown = await listTiles(c.env, product.id);
+    if (grown.some((tile) => tile.kind === 'table' && tile.anchor === anchor)) {
+      return fail(409, 'conflict', `「${anchor}」这张表已经有血肉了，改它，不用再长一份`);
+    }
+  }
   const tile = await addTile(c.env, product, {
-    name: text(body.name, '血肉名', 60),
+    // 表设计挂在表上，名字就是那张表的名字；另外两种自己起名。
+    name: kind === 'table' ? anchor : text(body.name, '血肉名', 60),
+    kind,
+    anchor,
     note: typeof body.note === 'string' ? body.note.trim().slice(0, 240) : '',
   });
   return c.json({ tile: tileView(tile) }, 201);

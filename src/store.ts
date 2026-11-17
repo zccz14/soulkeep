@@ -1,6 +1,7 @@
 import type { Env } from './env';
 import { fail } from './http';
 import { newId, nowSeconds, toSlug } from './ids';
+import type { FleshKind } from './flesh';
 import { EMPTY_SKELETON, parseSkeleton, type Skeleton } from './skeleton';
 import { EMPTY_SOUL, parseSoul, type Soul } from './soul';
 import type { Principal } from './auth';
@@ -27,6 +28,9 @@ export interface TileRow {
   id: string;
   product_id: string;
   name: string;
+  kind: FleshKind;
+  /** 表设计挂的那张表；其它种类是空串。 */
+  anchor: string;
   state: TileState;
   note: string;
   slot: number;
@@ -164,7 +168,7 @@ export async function listTiles(env: Env, productId: string): Promise<TileRow[]>
 export async function addTile(
   env: Env,
   product: ProductRow,
-  input: { name: string; note: string },
+  input: { name: string; note: string; kind: FleshKind; anchor: string },
 ): Promise<TileRow> {
   const count = await env.DB.prepare(`SELECT COUNT(*) AS n FROM flesh_tiles WHERE product_id = ?`)
     .bind(product.id)
@@ -173,15 +177,18 @@ export async function addTile(
     id: newId('tile'),
     product_id: product.id,
     name: input.name.trim(),
+    kind: input.kind,
+    anchor: input.anchor,
     state: 'growing',
     note: input.note.trim(),
     slot: count?.n ?? 0,
     created_at: nowSeconds(),
   };
   await env.DB.prepare(
-    `INSERT INTO flesh_tiles (id, product_id, name, state, note, slot, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO flesh_tiles (id, product_id, name, kind, anchor, state, note, slot, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(row.id, row.product_id, row.name, row.state, row.note, row.slot, row.created_at)
+    .bind(row.id, row.product_id, row.name, row.kind, row.anchor, row.state, row.note, row.slot, row.created_at)
     .run();
   await touch(env, product.id);
   return row;

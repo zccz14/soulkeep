@@ -33,6 +33,7 @@ export function productListItem(row: ProductRow, userId: string | null): Product
   return { ...productView(row), owned: userId !== null && userId === row.owner_user_id };
 }
 
+/** 一片血肉带着它的种类：表设计还带着挂在骨架哪张表上。 */
 export function tileView(row: TileRow) {
-  return { id: row.id, name: row.name, state: row.state, note: row.note };
+  return { id: row.id, name: row.name, kind: row.kind, anchor: row.anchor, state: row.state, note: row.note };
 }
