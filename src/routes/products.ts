@@ -3,33 +3,36 @@ import type { Env } from '../env';
 import { fail } from '../http';
 import { principalOf, requirePrincipal, type Principal } from '../auth';
 import {
-  addTile,
+  addFlesh,
   createProduct,
+  deleteFlesh,
   deleteProduct,
-  deleteTile,
+  listFlesh,
   listProducts,
-  listTiles,
+  loadFlesh,
   loadOwnProduct,
   loadProduct,
   readSkeleton,
   readSoul,
-  setTileState,
+  updateFlesh,
   updateProduct,
   writeSkeleton,
   writeSoul,
-  type TileState,
 } from '../store';
 import { normalizeRepo, normalizeUrl } from '../links';
-import { normalizeFleshAnchor, normalizeFleshKind } from '../flesh';
+import {
+  normalizeFleshAnchor,
+  normalizeFleshKind,
+  normalizeFleshPayload,
+  normalizeFleshState,
+} from '../flesh';
 import { normalizeSkeleton } from '../skeleton';
 import { normalizeSoul } from '../soul';
-import { productListItem, productView, tileView } from '../views';
+import { fleshView, productListItem, productView } from '../views';
 
 type Bindings = { Bindings: Env; Variables: { principal: Principal | null } };
 
 export const productRoutes = new Hono<Bindings>();
-
-const TILE_STATES: TileState[] = ['growing', 'pending', 'shed'];
 
 function text(value: unknown, field: string, max: number): string {
   if (typeof value !== 'string') return fail(400, 'bad_request', `${field} 必须是文字`);
@@ -63,13 +66,13 @@ productRoutes.post('/', async (c) => {
 productRoutes.get('/:slug', async (c) => {
   const principal = await principalOf(c.req.raw, c.env);
   const product = await loadProduct(c.env, c.req.param('slug'), principal);
-  const tiles = await listTiles(c.env, product.id);
+  const flesh = await listFlesh(c.env, product.id);
   return c.json({
     product: productView(product),
     canEdit: principal !== null && principal.userId === product.owner_user_id,
     soul: readSoul(product),
     skeleton: readSkeleton(product),
-    tiles: tiles.map(tileView),
+    flesh: flesh.map(fleshView),
   });
 });
 
@@ -111,39 +114,59 @@ productRoutes.put('/:slug/skeleton', async (c) => {
   return c.json({ skeleton });
 });
 
-productRoutes.post('/:slug/tiles', async (c) => {
+/**
+ * 机器把血肉喂回来：一片一行，正文按种类过 Schema。
+ * 这一层没有给人用的编辑页——人来写血肉，它就成了要先写好的规格。
+ */
+productRoutes.post('/:slug/flesh', async (c) => {
   const principal = await requirePrincipal(c.req.raw, c.env);
   const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
   const body = await c.req.json().catch(() => ({}));
+  const skeleton = readSkeleton(product);
   const kind = normalizeFleshKind(body.kind);
-  const anchor = normalizeFleshAnchor(kind, body.anchor, readSkeleton(product));
+  const anchor = normalizeFleshAnchor(kind, body.anchor, skeleton);
+  const payload = normalizeFleshPayload(kind, body.payload, skeleton);
+  const state = normalizeFleshState(body.state);
   if (kind === 'table') {
-    const grown = await listTiles(c.env, product.id);
-    if (grown.some((tile) => tile.kind === 'table' && tile.anchor === anchor)) {
+    const grown = await listFlesh(c.env, product.id);
+    if (grown.some((row) => row.kind === 'table' && row.anchor === anchor)) {
       return fail(409, 'conflict', `「${anchor}」这张表已经有血肉了，改它，不用再长一份`);
     }
   }
-  const tile = await addTile(c.env, product, {
+  const row = await addFlesh(c.env, product, {
     // 表设计挂在表上，名字就是那张表的名字；另外两种自己起名。
     name: kind === 'table' ? anchor : text(body.name, '血肉名', 60),
     kind,
     anchor,
-    note: typeof body.note === 'string' ? body.note.trim().slice(0, 240) : '',
+    state,
+    payload: JSON.stringify(payload),
   });
-  return c.json({ tile: tileView(tile) }, 201);
+  return c.json({ flesh: fleshView(row) }, 201);
 });
 
-productRoutes.patch('/:slug/tiles/:tileId', async (c) => {
+/** 读回来的东西变了：整份正文换掉，读回的时间跟着走。 */
+productRoutes.patch('/:slug/flesh/:fleshId', async (c) => {
   const principal = await requirePrincipal(c.req.raw, c.env);
   const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
+  const row = await loadFlesh(c.env, product, c.req.param('fleshId'));
   const body = await c.req.json().catch(() => ({}));
-  await setTileState(c.env, product, c.req.param('tileId'), oneOf(body.state, TILE_STATES, '状态', 'growing'));
-  return c.body(null, 204);
+  const payload =
+    body.payload === undefined
+      ? undefined
+      : JSON.stringify(normalizeFleshPayload(row.kind, body.payload, readSkeleton(product)));
+  const state = body.state === undefined ? undefined : normalizeFleshState(body.state);
+  if (payload === undefined && state === undefined) {
+    return fail(400, 'bad_request', '要么换正文，要么改状态');
+  }
+  const next = await updateFlesh(c.env, product, row, { state, payload });
+  return c.json({ flesh: fleshView(next) });
 });
 
-productRoutes.delete('/:slug/tiles/:tileId', async (c) => {
+/** 东西没了：这片肉从骨架下脱落，直接从这一层拿掉。 */
+productRoutes.delete('/:slug/flesh/:fleshId', async (c) => {
   const principal = await requirePrincipal(c.req.raw, c.env);
   const product = await loadOwnProduct(c.env, c.req.param('slug'), principal);
-  await deleteTile(c.env, product, c.req.param('tileId'));
+  const row = await loadFlesh(c.env, product, c.req.param('fleshId'));
+  await deleteFlesh(c.env, product, row.id);
   return c.body(null, 204);
 });

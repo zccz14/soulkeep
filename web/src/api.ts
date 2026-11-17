@@ -46,7 +46,7 @@ export async function api<T>(sdk: SdkLike | null, path: string, init?: RequestIn
   return parsed as T;
 }
 
-export type TileState = 'growing' | 'pending' | 'shed';
+export type FleshState = 'growing' | 'pending' | 'shed';
 
 /** 血肉分三种：表设计挂在骨架的一张表上，功能与页面自己站着。 */
 export type FleshKind = 'table' | 'feature' | 'page';
@@ -60,10 +60,49 @@ export const FLESH_KIND_LABEL: Record<FleshKind, string> = {
 };
 
 export const FLESH_KIND_HINT: Record<FleshKind, string> = {
-  table: '这张表长什么样：有哪些列、哪列是键、跟谁连着',
-  feature: '它能做什么：一条接口、一段流程、一次校验',
-  page: '人看见什么、能点什么',
+  table: '每张表长什么样：有哪些列、哪列是键',
+  feature: '它能做什么：落在哪个入口，动到哪几张表',
+  page: '人从哪条路由进去、能做什么',
 };
+
+export const FLESH_STATE_LABEL: Record<FleshState, string> = {
+  growing: '长着',
+  pending: '待补',
+  shed: '已脱落',
+};
+
+export type ColumnKey = '' | 'pk' | 'fk' | 'unique';
+
+export const COLUMN_KEY_LABEL: Record<ColumnKey, string> = { '': '', pk: '主键', fk: '外键', unique: '唯一' };
+
+export interface Column {
+  name: string;
+  type: string;
+  key: ColumnKey;
+  note: string;
+}
+
+export interface TablePayload {
+  columns: Column[];
+  note: string;
+  source: string;
+}
+
+export interface FeaturePayload {
+  does: string;
+  entry: string;
+  tables: string[];
+  note: string;
+  source: string;
+}
+
+export interface PagePayload {
+  route: string;
+  actions: string[];
+  tables: string[];
+  note: string;
+  source: string;
+}
 
 export interface ProductView {
   slug: string;
@@ -96,14 +135,16 @@ export interface Skeleton {
   relations: SkeletonRelation[];
 }
 
-export interface TileView {
+/** 一片血肉：正文按种类各有各的形状，服务端已经校验过。 */
+export interface FleshView {
   id: string;
   name: string;
   kind: FleshKind;
   /** 表设计挂的那张表；其它种类是空串。 */
   anchor: string;
-  state: TileState;
-  note: string;
+  state: FleshState;
+  payload: TablePayload | FeaturePayload | PagePayload;
+  readAt: number;
 }
 
 export interface Concept {
@@ -123,7 +164,7 @@ export interface ProductDetail {
   canEdit: boolean;
   soul: Soul;
   skeleton: Skeleton;
-  tiles: TileView[];
+  flesh: FleshView[];
 }
 
 /** 列表多一个 owned：公开之后，桌面只把您自己的算成您养着的。 */
@@ -170,22 +211,4 @@ export function saveSkeleton(sdk: SdkLike, slug: string, skeleton: Skeleton) {
     method: 'PUT',
     body: JSON.stringify(skeleton),
   });
-}
-
-export function addTile(sdk: SdkLike, slug: string, input: { name: string; note: string; kind: FleshKind; anchor: string }) {
-  return api<{ tile: TileView }>(sdk, `/api/v1/products/${slug}/tiles`, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-}
-
-export function setTileState(sdk: SdkLike, slug: string, id: string, state: TileState) {
-  return api<void>(sdk, `/api/v1/products/${slug}/tiles/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ state }),
-  });
-}
-
-export function removeTile(sdk: SdkLike, slug: string, id: string) {
-  return api<void>(sdk, `/api/v1/products/${slug}/tiles/${id}`, { method: 'DELETE' });
 }
