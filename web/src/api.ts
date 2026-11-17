@@ -48,6 +48,23 @@ export async function api<T>(sdk: SdkLike | null, path: string, init?: RequestIn
 
 export type TileState = 'growing' | 'pending' | 'shed';
 
+/** 血肉分三种：表设计挂在骨架的一张表上，功能与页面自己站着。 */
+export type FleshKind = 'table' | 'feature' | 'page';
+
+export const FLESH_KINDS: FleshKind[] = ['table', 'feature', 'page'];
+
+export const FLESH_KIND_LABEL: Record<FleshKind, string> = {
+  table: '表设计',
+  feature: '功能',
+  page: '页面',
+};
+
+export const FLESH_KIND_HINT: Record<FleshKind, string> = {
+  table: '这张表长什么样：有哪些列、哪列是键、跟谁连着',
+  feature: '它能做什么：一条接口、一段流程、一次校验',
+  page: '人看见什么、能点什么',
+};
+
 export interface ProductView {
   slug: string;
   name: string;
@@ -82,6 +99,9 @@ export interface Skeleton {
 export interface TileView {
   id: string;
   name: string;
+  kind: FleshKind;
+  /** 表设计挂的那张表；其它种类是空串。 */
+  anchor: string;
   state: TileState;
   note: string;
 }
@@ -152,7 +172,7 @@ export function saveSkeleton(sdk: SdkLike, slug: string, skeleton: Skeleton) {
   });
 }
 
-export function addTile(sdk: SdkLike, slug: string, input: { name: string; note: string }) {
+export function addTile(sdk: SdkLike, slug: string, input: { name: string; note: string; kind: FleshKind; anchor: string }) {
   return api<{ tile: TileView }>(sdk, `/api/v1/products/${slug}/tiles`, {
     method: 'POST',
     body: JSON.stringify(input),
